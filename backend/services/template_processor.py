@@ -314,7 +314,7 @@ IMPORTANT:
 
             # Call OpenAI API with prompt only (NO IMAGE, NO HTML, NO CAPTION)
             response = self.openai_client.chat.completions.create(
-                model="gpt-4o",
+                model="gpt-4o-mini",
                 messages=[
                     {
                         "role": "user",

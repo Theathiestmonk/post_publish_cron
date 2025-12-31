@@ -1020,7 +1020,7 @@ Return the edited content:"""
         
         # Call OpenAI to edit the content
         response = client.chat.completions.create(
-            model="gpt-4",
+            model="gpt-4o-mini",
             messages=[
                 {"role": "system", "content": "You are an expert content editor. Always return only the edited content without any explanations or additional text."},
                 {"role": "user", "content": edit_prompt}
@@ -1038,7 +1038,7 @@ Return the edited content:"""
             await token_tracker.track_chat_completion_usage(
                 user_id=current_user.id,
                 feature_type="content_ai_edit",
-                model_name="gpt-4",
+                model_name="gpt-4o-mini",
                 response=response,
                 request_metadata={"content_length": len(request.content)}
             )

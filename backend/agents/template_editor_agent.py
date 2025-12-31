@@ -527,7 +527,7 @@ class TemplateEditorAgent:
             # Use OpenAI to generate content based on custom prompt
             client = openai.AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
             response = await client.chat.completions.create(
-                model="gpt-3.5-turbo",
+                model="gpt-4o-mini",
                 messages=[
                     {
                         "role": "system",
@@ -551,7 +551,7 @@ class TemplateEditorAgent:
                 await self.token_tracker.track_chat_completion_usage(
                     user_id=user_id,
                     feature_type="template_editing",
-                    model_name="gpt-3.5-turbo",
+                    model_name="gpt-4o-mini",
                     response=response,
                     request_metadata={"template_name": state.get('template_name')}
                 )
@@ -770,7 +770,7 @@ class TemplateEditorAgent:
             
             client = openai.OpenAI()
             response = client.chat.completions.create(
-                model="gpt-4-vision-preview",
+                model="gpt-4o-mini",
                 messages=[
                     {
                         "role": "user",
@@ -794,7 +794,7 @@ class TemplateEditorAgent:
                 await self.token_tracker.track_chat_completion_usage(
                     user_id=user_id,
                     feature_type="template_editing",
-                    model_name="gpt-4-vision-preview",
+                    model_name="gpt-4o-mini",
                     response=response,
                     request_metadata={"action": "analyze_template"}
                 )
@@ -1044,7 +1044,7 @@ class TemplateEditorAgent:
                     
                     client = openai.OpenAI()
                     response = client.chat.completions.create(
-                        model="gpt-4",
+                        model="gpt-4o-mini",
                         messages=[
                             {"role": "user", "content": content_prompt}
                         ],
@@ -1072,7 +1072,7 @@ class TemplateEditorAgent:
                     """
                     
                     validation_response = client.chat.completions.create(
-                        model="gpt-4",
+                        model="gpt-4o-mini",
                         messages=[
                             {"role": "user", "content": validation_prompt}
                         ],
@@ -1087,7 +1087,7 @@ class TemplateEditorAgent:
                         await self.token_tracker.track_chat_completion_usage(
                             user_id=user_id,
                             feature_type="template_editing",
-                            model_name="gpt-4",
+                            model_name="gpt-4o-mini",
                             response=validation_response,
                             request_metadata={"action": "validate_content"}
                         )
@@ -1159,7 +1159,7 @@ class TemplateEditorAgent:
             
             client = openai.OpenAI()
             analysis_response = client.chat.completions.create(
-                model="gpt-4o",
+                model="gpt-4o-mini",
                 messages=[
                     {
                         "role": "user",
@@ -1183,7 +1183,7 @@ class TemplateEditorAgent:
                 await self.token_tracker.track_chat_completion_usage(
                     user_id=user_id,
                     feature_type="template_editing",
-                    model_name="gpt-4o",
+                    model_name="gpt-4o-mini",
                     response=analysis_response,
                     request_metadata={"action": "analyze_image"}
                 )
@@ -1551,7 +1551,7 @@ OUTPUT: A single, professionally designed image that seamlessly combines the ori
             
             client = openai.OpenAI()
             response = client.chat.completions.create(
-                model="gpt-4",
+                model="gpt-4o-mini",
                 messages=[
                     {"role": "user", "content": edit_prompt}
                 ],
@@ -1564,7 +1564,7 @@ OUTPUT: A single, professionally designed image that seamlessly combines the ori
                 await self.token_tracker.track_chat_completion_usage(
                     user_id=user_id,
                     feature_type="template_editing",
-                    model_name="gpt-4",
+                    model_name="gpt-4o-mini",
                     response=response,
                     request_metadata={"action": "custom_edit"}
                 )

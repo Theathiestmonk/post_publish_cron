@@ -23,9 +23,11 @@ import {
 const AdminDashboard = () => {
   const { user } = useAuth()
   const { showError, showSuccess } = useNotifications()
-  
+
   // State
   const [loading, setLoading] = useState(true)
+  const [isAdmin, setIsAdmin] = useState(false)
+  const [adminChecked, setAdminChecked] = useState(false)
   const [tokenUsage, setTokenUsage] = useState([])
   const [stats, setStats] = useState(null)
   const [usersList, setUsersList] = useState([])
@@ -76,16 +78,28 @@ const AdminDashboard = () => {
   const [availableFeatureTypes, setAvailableFeatureTypes] = useState([])
   const [availableModels, setAvailableModels] = useState([])
 
+  // Check admin status and load data only when user is authenticated and is admin
   useEffect(() => {
-    fetchData()
-    fetchStats()
-    fetchUsers()
-  }, [page, pageSize, filters])
+    if (user) {
+      checkAdminAccess()
+    }
+  }, [user])
 
-  // Fetch all available options for filters (only once on mount)
+  // Fetch data when filters change (only if user is admin)
   useEffect(() => {
-    fetchAllOptions()
-  }, [])
+    if (user && isAdmin) {
+      fetchData()
+      fetchStats()
+      fetchUsers()
+    }
+  }, [page, pageSize, filters, isAdmin])
+
+  // Fetch all available options for filters (only once on mount if admin)
+  useEffect(() => {
+    if (user && isAdmin) {
+      fetchAllOptions()
+    }
+  }, [user, isAdmin])
 
   // Close dropdowns when clicking outside
   useEffect(() => {
@@ -103,7 +117,30 @@ const AdminDashboard = () => {
     }
   }, [])
 
+  const checkAdminAccess = async () => {
+    try {
+      setLoading(true)
+      const response = await adminAPI.checkAdminStatus()
+      const adminStatus = response.data?.is_admin || false
+      setIsAdmin(adminStatus)
+      setAdminChecked(true)
+
+      if (!adminStatus) {
+        showError('Admin access required. You do not have permission to view this dashboard.')
+      }
+    } catch (error) {
+      console.error('Error checking admin status:', error)
+      showError('Failed to verify admin access')
+      setIsAdmin(false)
+      setAdminChecked(true)
+    } finally {
+      setLoading(false)
+    }
+  }
+
   const fetchData = async () => {
+    if (!isAdmin) return
+
     try {
       setLoading(true)
       const result = await adminAPI.getTokenUsage({
@@ -136,6 +173,8 @@ const AdminDashboard = () => {
   }
 
   const fetchStats = async () => {
+    if (!isAdmin) return
+
     try {
       const result = await adminAPI.getTokenUsageStats(
         filters.start_date || null,
@@ -157,6 +196,8 @@ const AdminDashboard = () => {
   }
 
   const fetchUsers = async () => {
+    if (!isAdmin) return
+
     try {
       const result = await adminAPI.getUsers(
         filters.start_date || null,
@@ -178,6 +219,8 @@ const AdminDashboard = () => {
   }
 
   const fetchAllOptions = async () => {
+    if (!isAdmin) return
+
     try {
       // Fetch all data without filters to get all available options
       const result = await adminAPI.getTokenUsage({
@@ -309,6 +352,45 @@ const AdminDashboard = () => {
   }
 
   const totalPages = Math.ceil(total / pageSize)
+
+  // Redirect if not logged in
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <h2 className="text-2xl font-bold text-gray-900 mb-4">Please log in to access the admin dashboard</h2>
+          <p className="text-gray-600">You need to be logged in with admin privileges to view this page.</p>
+        </div>
+      </div>
+    )
+  }
+
+  // Show loading while checking admin status
+  if (!adminChecked) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
+          <h2 className="text-2xl font-bold text-gray-900 mb-4">Verifying Admin Access</h2>
+          <p className="text-gray-600">Please wait while we verify your admin privileges...</p>
+        </div>
+      </div>
+    )
+  }
+
+  // Show access denied if not admin
+  if (!isAdmin) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="text-red-500 text-6xl mb-4">⚠️</div>
+          <h2 className="text-2xl font-bold text-gray-900 mb-4">Access Denied</h2>
+          <p className="text-gray-600">You do not have admin privileges to access this dashboard.</p>
+          <p className="text-sm text-gray-500 mt-2">Contact your administrator if you believe this is an error.</p>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">

@@ -831,9 +831,9 @@ class ContentFromDriveAgent:
                         
                         logger.info(f"🖼️ Converted {file_name} to base64 ({len(image_base64)} chars), ready for ChatGPT analysis")
                     
-                    # Analyze with OpenAI Vision (using gpt-4o - the current vision model)
+                    # Analyze with OpenAI Vision (using gpt-4o-mini - the current vision model)
                     response = self.client.chat.completions.create(
-                        model="gpt-4o",
+                        model="gpt-4o-mini",
                         messages=[
                             {
                                 "role": "user",
@@ -858,7 +858,7 @@ class ContentFromDriveAgent:
                                 self.token_tracker.track_chat_completion_usage(
                                     user_id=state["user_id"],
                                     feature_type="content_generation",
-                                    model_name="gpt-4o",
+                                    model_name="gpt-4o-mini",
                                     response=response,
                                     request_metadata={"action": "analyze_photo", "file_name": file_name}
                                 )
@@ -941,7 +941,7 @@ class ContentFromDriveAgent:
                         
                         # Analyze with OpenAI Vision
                         response = self.client.chat.completions.create(
-                            model="gpt-4o",
+                            model="gpt-4o-mini",
                             messages=[
                                 {
                                     "role": "user",
@@ -966,7 +966,7 @@ class ContentFromDriveAgent:
                                     self.token_tracker.track_chat_completion_usage(
                                         user_id=state["user_id"],
                                         feature_type="content_generation",
-                                        model_name="gpt-4o",
+                                        model_name="gpt-4o-mini",
                                         response=response,
                                         request_metadata={"action": "analyze_carousel_photo", "folder_name": carousel_post.get("folder_name")}
                                     )
@@ -1211,10 +1211,10 @@ CRITICAL INSTRUCTIONS:
   "call_to_action": "Suggested call to action"
 }}"""
                     
-                    # Use gpt-4o model (supports vision and better JSON generation)
+                    # Use gpt-4o-mini model (supports vision and better JSON generation)
                     # Don't use response_format as gpt-4 doesn't support it, parse JSON from response
                     response = self.client.chat.completions.create(
-                        model="gpt-4o",
+                        model="gpt-4o-mini",
                         messages=[
                             {"role": "system", "content": "You are an expert social media content creator specializing in {platform}. Generate engaging, platform-optimized captions that connect visual content with business messaging. Always return valid JSON without markdown formatting."},
                             {"role": "user", "content": prompt}
@@ -1241,7 +1241,7 @@ CRITICAL INSTRUCTIONS:
                                 self.token_tracker.track_chat_completion_usage(
                                     user_id=state["user_id"],
                                     feature_type="content_generation",
-                                    model_name="gpt-4o",
+                                    model_name="gpt-4o-mini",
                                     response=response,
                                     request_metadata={"action": "generate_caption", "platform": platform, "is_carousel": is_carousel}
                                 )

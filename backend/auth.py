@@ -82,29 +82,36 @@ def get_admin_user(credentials: HTTPAuthorizationCredentials = Depends(security)
     try:
         # First get the current user
         user = get_current_user(credentials)
-        
+        print(f"🔍 Admin Auth - User authenticated: {user.id}")
+
         # Check if user has admin subscription plan
         profile_response = supabase.table("profiles").select("subscription_plan, subscription_status").eq("id", user.id).execute()
-        
+        print(f"🔍 Admin Auth - Profile response: {profile_response.data}")
+
         if not profile_response.data:
+            print(f"🔍 Admin Auth - No profile found for user {user.id}")
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="User profile not found"
             )
-        
+
         profile = profile_response.data[0]
         subscription_plan = profile.get("subscription_plan")
         subscription_status = profile.get("subscription_status")
-        
+
+        print(f"🔍 Admin Auth - User {user.id} has plan: {subscription_plan}, status: {subscription_status}")
+
         # Check if user has 'admin' subscription plan
         is_admin = subscription_plan == "admin"
-        
+
         if not is_admin:
+            print(f"🔍 Admin Auth - User {user.id} does not have admin plan (has: {subscription_plan})")
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Admin access required. Admin subscription plan is required."
             )
-        
+
+        print(f"🔍 Admin Auth - User {user.id} granted admin access")
         return user
     except HTTPException:
         raise

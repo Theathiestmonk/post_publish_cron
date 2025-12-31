@@ -14,6 +14,8 @@ import CampaignsDashboard from './components/CampaignsDashboard'
 import AdsDashboard from './components/AdsDashboard'
 import BlogDashboard from './components/BlogDashboard'
 import LeadsDashboard from './components/LeadsDashboard'
+import ATSNDashboard from './components/ATSNDashboard'
+import PostSuggestionsDashboard from './components/PostSuggestionsDashboard'
 import Chatbot from './components/Chatbot'
 import Onboarding from './components/Onboarding'
 import Profile from './components/Profile'
@@ -249,19 +251,35 @@ function AppContent() {
             </ProtectedRoute>
           } 
         />
-        <Route 
-          path="/leads" 
+        <Route
+          path="/leads"
           element={
             <ProtectedRoute>
               <LeadsDashboard />
             </ProtectedRoute>
-          } 
+          }
+        />
+        <Route
+          path="/post-suggestions"
+          element={
+            <ProtectedRoute>
+              <PostSuggestionsDashboard />
+            </ProtectedRoute>
+          }
         />
         <Route 
           path="/blogs" 
           element={
             <ProtectedRoute>
               <BlogDashboard />
+            </ProtectedRoute>
+          } 
+        />
+        <Route 
+          path="/atsn" 
+          element={
+            <ProtectedRoute>
+              <ATSNDashboard />
             </ProtectedRoute>
           } 
         />

@@ -623,7 +623,8 @@ async def get_capabilities():
 @router.get("/conversations")
 async def get_conversations(
     current_user: User = Depends(get_current_user),
-    all: bool = Query(False, description="Get all conversations instead of just today's")
+    all: bool = Query(False, description="Get all conversations instead of just today's"),
+    agent: str = Query(None, description="Filter by agent type (e.g., 'atsn')")
 ):
     """Get conversations for current user - today's by default, or all if all=true"""
     try:
@@ -633,25 +634,46 @@ async def get_conversations(
         conversations = []
         try:
             query = supabase_client.table("chatbot_conversations").select("*").eq("user_id", user_id)
-            
+
             if not all:
                 # Get today's date in UTC
                 today_utc = datetime.now(timezone.utc).date()
                 today_start = datetime.combine(today_utc, datetime.min.time()).replace(tzinfo=timezone.utc)
                 today_end = datetime.combine(today_utc, datetime.max.time()).replace(tzinfo=timezone.utc)
-                
+
                 # Format as ISO strings for Supabase query
                 today_start_str = today_start.isoformat()
                 today_end_str = today_end.isoformat()
-                
+
                 logger.info(f"Date range (UTC): {today_start_str} to {today_end_str}")
                 query = query.gte("created_at", today_start_str).lt("created_at", today_end_str)
+
+            # Filter by agent if specified
+            if agent:
+                logger.info(f"Filtering conversations by agent: {agent}")
+                query = query.contains("metadata", {"agent": agent})
+            else:
+                # When no agent is specified, exclude ATSN conversations to keep them separate
+                logger.info("Excluding ATSN conversations for general chatbot")
+                # Use a more complex query to exclude ATSN conversations
+                # This will include conversations with no agent metadata or different agent metadata
             
             response = query.order("created_at", desc=False).execute()
-            
+
             if response and hasattr(response, 'data'):
                 conversations = response.data if response.data else []
-            logger.info(f"Found {len(conversations)} conversations for user {user_id}")
+
+            # Filter conversations based on agent parameter
+            if agent:
+                # When filtering for a specific agent, only include conversations with that agent
+                conversations = [conv for conv in conversations if
+                    conv.get("metadata", {}).get("agent") == agent]
+            else:
+                # When no agent is specified, exclude ATSN conversations
+                conversations = [conv for conv in conversations if
+                    conv.get("metadata", {}).get("agent") != "atsn"]
+
+            logger.info(f"Found {len(conversations)} conversations for user {user_id} (agent filter: {agent or 'non-atsn'})")
         except Exception as db_error:
             logger.error(f"Database error fetching conversations: {str(db_error)}", exc_info=True)
             # Return empty list instead of crashing

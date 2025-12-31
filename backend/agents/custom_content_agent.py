@@ -1205,7 +1205,7 @@ Return ONLY valid JSON, no markdown code blocks."""
             response = await asyncio.wait_for(
                 asyncio.to_thread(
                     self.client.chat.completions.create,
-                    model="gpt-4",
+                    model="gpt-4o-mini",
                     messages=[
                         {
                             "role": "system",
@@ -1229,7 +1229,7 @@ Return ONLY valid JSON, no markdown code blocks."""
                 await self.token_tracker.track_chat_completion_usage(
                     user_id=user_id,
                     feature_type="custom_content",
-                    model_name="gpt-4",
+                    model_name="gpt-4o-mini",
                     response=response,
                     request_metadata={
                         "conversation_id": state.get("conversation_id"),
@@ -1490,7 +1490,7 @@ Return ONLY valid JSON, no markdown code blocks."""
             # Handle timeout errors gracefully - continue without images if timeout occurs
             try:
                 response = self.client.chat.completions.create(
-                    model="gpt-4o",  # Use vision-capable model
+                    model="gpt-4o-mini",  # Use vision-capable model
                     messages=messages,
                     temperature=0.7,
                     max_tokens=1000,
@@ -1503,7 +1503,7 @@ Return ONLY valid JSON, no markdown code blocks."""
                     await self.token_tracker.track_chat_completion_usage(
                         user_id=user_id,
                         feature_type="custom_content",
-                        model_name="gpt-4o",
+                        model_name="gpt-4o-mini",
                         response=response,
                         request_metadata={
                             "conversation_id": state.get("conversation_id"),
@@ -1528,7 +1528,7 @@ Return ONLY valid JSON, no markdown code blocks."""
                     ]
                     try:
                         response = self.client.chat.completions.create(
-                            model="gpt-4o",
+                            model="gpt-4o-mini",
                             messages=text_only_messages,
                             temperature=0.7,
                             max_tokens=1000
@@ -2585,7 +2585,7 @@ Return ONLY valid JSON, no markdown code blocks."""
             
             # Analyze image using vision model with base64 data
             response = self.client.chat.completions.create(
-                model="gpt-4o",
+                model="gpt-4o-mini",
                 messages=[
                     {"role": "system", "content": "You are an expert visual content analyst specializing in social media marketing."},
                     {"role": "user", "content": [

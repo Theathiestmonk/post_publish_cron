@@ -224,7 +224,7 @@ INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_typ
 VALUES 
     ('ai-generated-images', 'ai-generated-images', true, 10485760, ARRAY['image/jpeg', 'image/png', 'image/webp']),
     ('content-templates', 'content-templates', true, 5242880, ARRAY['image/jpeg', 'image/png', 'image/webp', 'image/gif']),
-    ('user-uploads', 'user-uploads', false, 10485760, ARRAY['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'video/mp4', 'video/webm'])
+    ('user-uploads', 'user-uploads', true, 10485760, ARRAY['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'video/mp4', 'video/webm'])
 ON CONFLICT (id) DO NOTHING;
 
 -- Storage Policies for ai-generated-images bucket

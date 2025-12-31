@@ -571,7 +571,7 @@ class BlogWritingAgent:
                     "site_name": site_name,
                     "site_type": "standalone" if site_id == "standalone" else "wordpress",
                     "campaign_id": state.campaign.id if state.campaign else None,
-                    "ai_model": "gpt-4",
+                    "ai_model": "gpt-4o-mini",
                     "generation_time": datetime.now().isoformat()
                 }
             )

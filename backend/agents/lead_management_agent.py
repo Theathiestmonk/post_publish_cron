@@ -247,7 +247,7 @@ Return a JSON object with:
 """
             
             response = self.openai_client.chat.completions.create(
-                model="gpt-4",
+                model="gpt-4o-mini",
                 messages=[
                     {"role": "system", "content": "You are an expert email marketer. Always respond with valid JSON."},
                     {"role": "user", "content": prompt}
@@ -265,7 +265,7 @@ Return a JSON object with:
                         self.token_tracker.track_chat_completion_usage(
                             user_id=user_id,
                             feature_type="lead_email",
-                            model_name="gpt-4",
+                            model_name="gpt-4o-mini",
                             response=response,
                             request_metadata={"action": "generate_email", "lead_id": state.lead_id if hasattr(state, 'lead_id') else None}
                         )
@@ -497,7 +497,7 @@ Return just the message text, no JSON, no quotes.
 """
             
             response = self.openai_client.chat.completions.create(
-                model="gpt-4",
+                model="gpt-4o-mini",
                 messages=[
                     {"role": "system", "content": "You are an expert at writing WhatsApp business messages. Return only the message text."},
                     {"role": "user", "content": prompt}
@@ -690,7 +690,7 @@ Return just the response text, no JSON, no quotes.
 """
             
             response = self.openai_client.chat.completions.create(
-                model="gpt-4",
+                model="gpt-4o-mini",
                 messages=[
                     {"role": "system", "content": "You are a helpful customer service agent. Return only the response text."},
                     {"role": "user", "content": prompt}
@@ -708,7 +708,7 @@ Return just the response text, no JSON, no quotes.
                         self.token_tracker.track_chat_completion_usage(
                             user_id=user_id,
                             feature_type="lead_email",
-                            model_name="gpt-4",
+                            model_name="gpt-4o-mini",
                             response=response,
                             request_metadata={"action": "generate_ai_response", "lead_id": state.lead_id if hasattr(state, 'lead_id') else None}
                         )

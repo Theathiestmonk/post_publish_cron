@@ -1099,7 +1099,7 @@ const Chatbot = React.forwardRef(({ profile, isCallActive = false, callStatus = 
   const getAuthToken = async () => {
     const { data: { session } } = await supabase.auth.getSession()
     return session?.access_token
-  }
+}
 
   const handleFileUpload = async (file) => {
     if (!file) return
@@ -1725,6 +1725,8 @@ const Chatbot = React.forwardRef(({ profile, isCallActive = false, callStatus = 
                   <div className={`w-5 h-5 md:w-8 md:h-8 rounded-full flex items-center justify-center shadow-md ${
                     message.isChase 
                       ? 'bg-gradient-to-br from-blue-400 to-blue-600' 
+                      : message.isLeo
+                      ? 'bg-gradient-to-br from-blue-500 to-blue-700'
                       : 'bg-gradient-to-br from-pink-400 to-purple-500'
                   }`}>
                     <span className="text-white font-bold text-xs md:text-sm">

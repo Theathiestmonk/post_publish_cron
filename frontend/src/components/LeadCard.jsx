@@ -80,48 +80,44 @@ const LeadCard = ({ lead, onClick, onDelete, isSelected = false, onSelect = null
   }
 
   const getPlatformIcon = (platform) => {
-    switch (platform?.toLowerCase()) {
-      case 'facebook':
+    switch (platform) {
+      case 'Facebook':
         return <Facebook className="w-3.5 h-3.5" />
-      case 'instagram':
+      case 'Instagram':
         return <Instagram className="w-3.5 h-3.5" />
-      case 'walk_ins':
-      case 'walk-ins':
+      case 'Walk Ins':
         return <LogIn className="w-3.5 h-3.5" />
-      case 'referral':
+      case 'Referral':
         return <Users className="w-3.5 h-3.5" />
-      case 'email':
+      case 'Email':
         return <Mail className="w-3.5 h-3.5" />
-      case 'website':
+      case 'Website':
         return <Globe className="w-3.5 h-3.5" />
-      case 'phone_call':
-      case 'phone-call':
-      case 'phone call':
+      case 'Phone Call':
         return <Phone className="w-3.5 h-3.5" />
+      case 'Manual Entry':
       default:
         return <User className="w-3.5 h-3.5" />
     }
   }
 
   const getPlatformColor = (platform) => {
-    switch (platform?.toLowerCase()) {
-      case 'facebook':
+    switch (platform) {
+      case 'Facebook':
         return 'from-blue-600 to-blue-800'
-      case 'instagram':
+      case 'Instagram':
         return 'from-pink-500 via-purple-500 to-pink-600'
-      case 'walk_ins':
-      case 'walk-ins':
+      case 'Walk Ins':
         return 'from-green-500 to-green-700'
-      case 'referral':
+      case 'Referral':
         return 'from-purple-500 to-purple-700'
-      case 'email':
+      case 'Email':
         return 'from-blue-400 to-blue-600'
-      case 'website':
+      case 'Website':
         return 'from-indigo-500 to-indigo-700'
-      case 'phone_call':
-      case 'phone-call':
-      case 'phone call':
+      case 'Phone Call':
         return 'from-teal-500 to-teal-700'
+      case 'Manual Entry':
       default:
         return 'from-gray-500 to-gray-700'
     }

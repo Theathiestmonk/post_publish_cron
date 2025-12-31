@@ -104,6 +104,18 @@ async def generate_image_for_post(
         # Generate image
         result = await media_agent.generate_media_for_post(request.post_id, current_user.id)
         
+        # Increment image generation count
+        try:
+            current = supabase_admin.table('profiles').select('images_generated_this_month').eq('id', current_user.id).execute()
+            if current.data and len(current.data) > 0:
+                current_count = current.data[0]['images_generated_this_month'] or 0
+                supabase_admin.table('profiles').update({
+                    'images_generated_this_month': current_count + 1
+                }).eq('id', current_user.id).execute()
+                logger.info(f"Incremented image count for user {current_user.id} (from {current_count} to {current_count + 1})")
+        except Exception as counter_error:
+            logger.error(f"Error incrementing image count: {counter_error}")
+
         return ImageGenerationResponse(**result)
         
     except Exception as e:
@@ -153,6 +165,17 @@ async def generate_images_for_posts(
                 
                 if result["success"]:
                     successful += 1
+                    # Increment image generation count for successful generation
+                    try:
+                        current = supabase_admin.table('profiles').select('images_generated_this_month').eq('id', current_user.id).execute()
+                        if current.data and len(current.data) > 0:
+                            current_count = current.data[0]['images_generated_this_month'] or 0
+                            supabase_admin.table('profiles').update({
+                                'images_generated_this_month': current_count + 1
+                            }).eq('id', current_user.id).execute()
+                            logger.info(f"Incremented image count for user {current_user.id} (batch, from {current_count} to {current_count + 1})")
+                    except Exception as counter_error:
+                        logger.error(f"Error incrementing image count in batch: {counter_error}")
                 else:
                     failed += 1
                     
@@ -590,7 +613,7 @@ async def upload_media(
     file: UploadFile = File(...),
     current_user: User = Depends(get_current_user)
 ):
-    """Upload a media file (image or video) to Supabase storage for onboarding/profile use"""
+    """Upload a media file (image or video) to Supabase storage for content uploads"""
     try:
         logger.info(f"Media upload request received - filename: {file.filename}, user: {current_user.id}")
         
@@ -625,7 +648,7 @@ async def upload_media(
         import uuid
         file_ext = file.filename.split('.')[-1] if '.' in file.filename else ('mp4' if is_video else 'png')
         filename = f"{current_user.id}-{uuid.uuid4().hex[:8]}.{file_ext}"
-        file_path = f"onboarding-media/{filename}"
+        file_path = f"uploaded/{filename}"
         logger.info(f"Generated file path: {file_path}")
         
         # Use user-uploads bucket for media (supports both images and videos)

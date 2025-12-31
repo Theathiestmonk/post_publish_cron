@@ -40,6 +40,13 @@ from routers.whatsapp import router as whatsapp_router
 from routers.content_from_drive import router as content_from_drive_router
 from routers.admin import router as admin_router
 from routers.faq_embeddings import router as faq_embeddings_router
+from routers.analytics_insights import router as analytics_insights_router
+from routers.atsn_chatbot import router as atsn_chatbot_router
+from routers.profile import router as profile_router
+from services.scheduler import start_analytics_scheduler, stop_analytics_scheduler, get_scheduler_status, trigger_analytics_collection_now
+
+# Load environment variables
+load_dotenv()
 
 # Configure logging
 log_level = os.getenv("LOG_LEVEL", "INFO")
@@ -120,6 +127,9 @@ app.include_router(whatsapp_router)
 app.include_router(content_from_drive_router)
 app.include_router(admin_router)
 app.include_router(faq_embeddings_router)
+app.include_router(analytics_insights_router)
+app.include_router(atsn_chatbot_router)
+app.include_router(profile_router)
 
 # Health check endpoint
 @app.get("/health")
@@ -218,6 +228,14 @@ async def startup_event():
         logger.error(f"Failed to start daily messages scheduler: {e}")
         logger.info("Continuing without daily messages scheduler")
     
+    # Start analytics collection scheduler
+    try:
+        start_analytics_scheduler()
+        logger.info("Analytics collection scheduler started successfully")
+    except Exception as e:
+        logger.error(f"Failed to start analytics scheduler: {e}")
+        logger.info("Continuing without analytics scheduler")
+    
 
 @app.on_event("shutdown")
 async def shutdown_event():
@@ -247,6 +265,13 @@ async def shutdown_event():
         pass
     except Exception as e:
         logger.error(f"Error stopping daily messages scheduler: {e}")
+    
+    # Stop analytics scheduler
+    try:
+        stop_analytics_scheduler()
+        logger.info("Analytics scheduler stopped successfully")
+    except Exception as e:
+        logger.error(f"Error stopping analytics scheduler: {e}")
     
     logger.info("Shutdown complete")
 
@@ -1428,6 +1453,90 @@ async def fetch_youtube_ads(connection: Dict[str, Any], token: str) -> List[Dict
     except Exception as e:
         print(f"Error fetching YouTube ads: {e}")
         return []
+
+# ============================================================================
+# INTERNAL ANALYTICS COLLECTION ENDPOINTS
+# ============================================================================
+
+# Secret token for internal endpoints (pg_cron, admin panel, etc.)
+INTERNAL_SECRET = os.getenv("INTERNAL_CRON_SECRET", "change-this-in-production")
+
+def verify_internal_secret(secret: Optional[str] = None):
+    """Verify internal secret token for protected endpoints."""
+    if not secret or secret != INTERNAL_SECRET:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Invalid or missing internal secret"
+        )
+
+@app.get("/api/internal/analytics/scheduler-status")
+async def get_analytics_scheduler_status(
+    x_cron_secret: Optional[str] = None
+):
+    """
+    Get current status of the analytics collection scheduler.
+    
+    Protected endpoint - requires X-Cron-Secret header.
+    
+    Returns:
+        Current scheduler status and next run time
+    """
+    verify_internal_secret(x_cron_secret)
+    
+    try:
+        status_info = get_scheduler_status()
+        return {
+            "success": True,
+            "data": status_info
+        }
+    except Exception as e:
+        logger.error(f"Failed to get scheduler status: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to retrieve scheduler status: {str(e)}"
+        )
+
+
+@app.post("/api/internal/analytics/trigger-collection")
+async def trigger_analytics_collection(
+    background_tasks: BackgroundTasks,
+    x_cron_secret: Optional[str] = None
+):
+    """
+    Manually trigger analytics collection job.
+    
+    Protected endpoint - requires X-Cron-Secret header.
+    Use this for:
+    - Manual testing
+    - pg_cron webhook
+    - Admin panel trigger
+    
+    The job runs in background to avoid timeout.
+    
+    Returns:
+        Job started confirmation
+    """
+    verify_internal_secret(x_cron_secret)
+    
+    try:
+        # Run collection in background
+        background_tasks.add_task(trigger_analytics_collection_now)
+        
+        logger.info("📊 Manual analytics collection triggered")
+        
+        return {
+            "success": True,
+            "message": "Analytics collection job started in background",
+            "triggered_at": datetime.now().isoformat()
+        }
+    except Exception as e:
+        logger.error(f"Failed to trigger collection: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to trigger analytics collection: {str(e)}"
+        )
+
+
 
 if __name__ == "__main__":
     import uvicorn

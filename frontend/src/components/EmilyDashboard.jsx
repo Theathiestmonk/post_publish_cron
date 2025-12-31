@@ -6,16 +6,47 @@ import { onboardingAPI } from '../services/onboarding'
 import { supabase } from '../lib/supabase'
 import SideNavbar from './SideNavbar'
 
+// Get dark mode state from localStorage or default to light mode
+const getDarkModePreference = () => {
+  return localStorage.getItem('darkMode') === 'true'
+}
+
+// Listen for storage changes to sync dark mode across components
+const useStorageListener = (key, callback) => {
+  useEffect(() => {
+    const handleStorageChange = (e) => {
+      if (e.key === key) {
+        callback(e.newValue === 'true')
+      }
+    }
+
+    window.addEventListener('storage', handleStorageChange)
+
+    // Also listen for custom events for same-tab updates
+    const handleCustomChange = (e) => {
+      if (e.detail.key === key) {
+        callback(e.detail.value === 'true')
+      }
+    }
+
+    window.addEventListener('localStorageChange', handleCustomChange)
+
+    return () => {
+      window.removeEventListener('storage', handleStorageChange)
+      window.removeEventListener('localStorageChange', handleCustomChange)
+    }
+  }, [key, callback])
+}
+
 const API_BASE_URL = (import.meta.env.VITE_API_URL || 'https://agent-emily.onrender.com').replace(/\/$/, '')
 import MobileNavigation from './MobileNavigation'
 import LoadingBar from './LoadingBar'
 import MainContentLoader from './MainContentLoader'
-import Chatbot from './Chatbot'
+import ATSNChatbot from './ATSNChatbot'
 import RecentTasks from './RecentTasks'
 import CustomContentChatbot from './CustomContentChatbot'
 import ContentCard from './ContentCard'
-import { Sparkles, TrendingUp, Users, Target, BarChart3, FileText, Calendar, PanelRight, PanelLeft, X, ChevronRight, Video, Phone, ChevronDown, MessageSquare, RefreshCw } from 'lucide-react'
-import WhatsAppMessageModal from './WhatsAppMessageModal'
+import { Sparkles, TrendingUp, Target, BarChart3, FileText, Calendar, PanelRight, PanelLeft, X, ChevronRight, RefreshCw } from 'lucide-react'
 
 // Voice Orb Component with animated border (spring-like animation)
 const VoiceOrb = ({ isSpeaking }) => {
@@ -149,79 +180,20 @@ function EmilyDashboard() {
   const [isPanelOpen, setIsPanelOpen] = useState(true)
   const [conversations, setConversations] = useState([])
   const [loadingConversations, setLoadingConversations] = useState(false)
-  const chatbotRef = useRef(null)
+  const [atsnConversationToLoad, setAtsnConversationToLoad] = useState(null)
   const [selectedDate, setSelectedDate] = useState(() => {
     const today = new Date()
     today.setHours(0, 0, 0, 0)
     return today
   })
   const hasSetInitialDate = useRef(false)
-  const [isCallActive, setIsCallActive] = useState(false)
-  const [callStatus, setCallStatus] = useState('idle') // 'idle', 'requesting', 'connecting', 'connected'
-  const [isCallSpeaking, setIsCallSpeaking] = useState(false)
   const [messageFilter, setMessageFilter] = useState('all') // 'all', 'emily', 'chase', 'leo'
-  const [filterDropdownOpen, setFilterDropdownOpen] = useState(false)
   const [showCustomContentChatbot, setShowCustomContentChatbot] = useState(false)
-  const [showWhatsAppModal, setShowWhatsAppModal] = useState(false)
   const [showMobileChatHistory, setShowMobileChatHistory] = useState(false)
+  const [isDarkMode, setIsDarkMode] = useState(getDarkModePreference)
 
-  const handleCallClick = async () => {
-    if (isCallActive) {
-      // End call
-      setIsCallActive(false)
-      setCallStatus('idle')
-      if (chatbotRef.current && chatbotRef.current.endCall) {
-        chatbotRef.current.endCall()
-      }
-    } else {
-      // Start call
-      setCallStatus('requesting')
-      try {
-        // Request microphone permission
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-        // Permission granted
-        stream.getTracks().forEach(track => track.stop()) // Stop the stream, we just needed permission
-        setCallStatus('connecting')
-        setIsCallActive(true)
-        
-        // Say "connected" using OpenAI TTS
-        try {
-          const authToken = await getAuthToken()
-          if (authToken) {
-            const response = await fetch(`${API_BASE_URL}/chatbot/tts`, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${authToken}`
-              },
-              body: JSON.stringify({ text: 'Connected' })
-            })
-            if (response.ok) {
-              const audioBlob = await response.blob()
-              const audioUrl = URL.createObjectURL(audioBlob)
-              const audio = new Audio(audioUrl)
-              audio.play()
-              audio.onended = () => URL.revokeObjectURL(audioUrl)
-            }
-          }
-        } catch (error) {
-          console.error('Error playing connected sound:', error)
-        }
-        
-        // Wait a bit then set to connected
-        setTimeout(() => {
-          setCallStatus('connected')
-          if (chatbotRef.current && chatbotRef.current.startCall) {
-            chatbotRef.current.startCall()
-          }
-        }, 1000)
-      } catch (error) {
-        console.error('Error accessing microphone:', error)
-        setCallStatus('idle')
-        showError('Microphone permission denied', 'Please allow microphone access to use voice calling.')
-      }
-    }
-  }
+  // Listen for dark mode changes from other components (like SideNavbar)
+  useStorageListener('darkMode', setIsDarkMode)
 
   const handleRefreshChat = async () => {
     try {
@@ -242,9 +214,7 @@ function EmilyDashboard() {
 
       if (response.ok) {
         // Clear the chat messages in the frontend
-        if (chatbotRef.current && chatbotRef.current.clearChat) {
-          chatbotRef.current.clearChat()
-        }
+        // ATSNChatbot handles chat clearing internally
         showSuccess('Chat refreshed', 'The conversation has been reset to start fresh.')
       } else {
         const errorData = await response.json().catch(() => ({ detail: 'Failed to refresh chat' }))
@@ -296,6 +266,17 @@ function EmilyDashboard() {
       }
     }
   }, [conversations])
+
+  // Apply dark mode to document body
+  useEffect(() => {
+    if (isDarkMode) {
+      document.documentElement.classList.add('dark')
+    } else {
+      document.documentElement.classList.remove('dark')
+    }
+    // Save preference to localStorage
+    localStorage.setItem('darkMode', isDarkMode.toString())
+  }, [isDarkMode])
 
   const getAuthToken = async () => {
     const { data: { session } } = await supabase.auth.getSession()
@@ -380,6 +361,39 @@ function EmilyDashboard() {
     })
   }
 
+  // Function to load ATSN conversations for a specific date
+  const loadAtsnConversationsForDate = async (dateObj) => {
+    try {
+      const authToken = await getAuthToken()
+      if (!authToken) {
+        console.error('No auth token available')
+        return []
+      }
+
+      const dateStr = dateObj.toISOString().split('T')[0] // Format as YYYY-MM-DD
+
+      const response = await fetch(`${API_BASE_URL}/atsn/conversations?date=${dateStr}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${authToken}`
+        }
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        console.log('ATSN conversations for date:', data)
+        return data.conversations || []
+      } else {
+        console.error('Failed to load ATSN conversations:', response.status)
+        return []
+      }
+    } catch (error) {
+      console.error('Error loading ATSN conversations:', error)
+      return []
+    }
+  }
+
   // Function to load conversations for a specific date
   const loadConversationsForDate = async (dateObj) => {
     try {
@@ -403,6 +417,10 @@ function EmilyDashboard() {
         const convDate = new Date(conv.created_at)
         return convDate >= startDate && convDate <= endDate
       })
+
+      // Also load ATSN conversations for this date
+      const atsnConversations = await loadAtsnConversationsForDate(dateObj)
+      console.log('Loaded ATSN conversations:', atsnConversations)
 
       // Convert to message format and load in chatbot
       const conversationMessages = dateConversations
@@ -442,9 +460,54 @@ function EmilyDashboard() {
         uniqueMessages.push(msg)
       }
 
-      // Pass to chatbot via ref
-      if (chatbotRef.current && chatbotRef.current.loadConversations) {
-        chatbotRef.current.loadConversations(uniqueMessages)
+      // Check if these are ATSN conversations and load them into ATSNChatbot
+      const hasAtsnConversations = dateConversations.some(conv => {
+        let metadata = conv.metadata
+        if (typeof metadata === 'string') {
+          try {
+            metadata = JSON.parse(metadata)
+          } catch {
+            metadata = {}
+          }
+        }
+        return metadata?.agent === 'atsn'
+      }) || atsnConversations.length > 0
+
+      if (hasAtsnConversations) {
+        // Load ATSN conversations into the chatbot
+        let atsnMessages = []
+
+        // Process new format ATSN conversations (from ATSN conversations table)
+        if (atsnConversations.length > 0) {
+          // Use the first conversation for this date (they should be ordered by creation time)
+          const conversation = atsnConversations[0]
+          atsnMessages = conversation.messages.map(msg => ({
+            id: msg.id,
+            conversationId: conversation.id,
+            sender: msg.sender,
+            text: msg.text,
+            timestamp: msg.timestamp,
+            intent: msg.intent,
+            agent_name: msg.agent_name,
+            current_step: msg.current_step,
+            clarification_question: msg.clarification_question,
+            clarification_options: msg.clarification_options,
+            content_items: msg.content_items,
+            lead_items: msg.lead_items
+          }))
+        }
+
+        // Always create a new array reference to ensure useEffect triggers
+        console.log('Setting ATSN conversation to load:', atsnMessages)
+        setAtsnConversationToLoad([...atsnMessages])
+        // Clear after a short delay to allow ATSNChatbot to load them
+        setTimeout(() => {
+          console.log('Clearing ATSN conversation to load')
+          setAtsnConversationToLoad(null)
+        }, 100)
+      } else {
+        // Regular chatbot conversations are loaded internally
+        // ATSNChatbot loads conversations internally via hooks
       }
     } catch (error) {
       console.error('Error loading conversations for date:', error)
@@ -462,19 +525,11 @@ function EmilyDashboard() {
     )
   }
 
-  // Close dropdown when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (filterDropdownOpen && !event.target.closest('.filter-dropdown-container')) {
-        setFilterDropdownOpen(false)
-      }
-    }
-    document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [filterDropdownOpen])
 
   return (
-    <div className="h-screen bg-white overflow-hidden md:overflow-auto">
+    <div className={`h-screen overflow-hidden md:overflow-auto ${
+      isDarkMode ? 'bg-gray-900' : 'bg-white'
+    }`}>
       {/* Mobile Navigation */}
       <MobileNavigation 
         setShowCustomContentChatbot={() => {}} // Dashboard doesn't have these functions
@@ -494,76 +549,82 @@ function EmilyDashboard() {
       <SideNavbar />
       
       {/* Main Content */}
-      <div className="md:ml-48 xl:ml-64 flex flex-col h-screen overflow-hidden pt-16 md:pt-0 md:bg-white bg-transparent">
+      <div className={`md:ml-48 xl:ml-64 flex flex-col h-screen overflow-hidden pt-16 md:pt-0 bg-transparent ${
+        isDarkMode ? 'md:bg-gray-900' : 'md:bg-white'
+      }`}>
         {/* Header */}
-        <div className="hidden md:block bg-white shadow-sm border-b z-30 flex-shrink-0">
+        <div className={`hidden md:block shadow-sm border-b z-30 flex-shrink-0 ${
+          isDarkMode ? 'bg-gray-900 border-gray-700' : 'bg-white border-gray-200'
+        }`}>
           <div className="px-4 lg:px-6 py-3 lg:py-4">
             <div className="flex justify-between items-center">
               <div className="hidden md:flex items-center gap-3">
-                <Users className="w-5 h-5 text-gray-600" />
-                <div className="relative filter-dropdown-container">
+                {/* Agent Filter Icons */}
+                <div className="flex items-center gap-1">
+                  {/* All Messages */}
                   <button
-                    onClick={() => setFilterDropdownOpen(!filterDropdownOpen)}
-                    className="flex items-center gap-1.5 px-2 py-1 rounded-md hover:bg-gray-100 transition-colors text-sm lg:text-base text-gray-900"
+                    onClick={() => setMessageFilter('all')}
+                    className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all ${
+                      messageFilter === 'all'
+                        ? 'bg-gray-600 text-white ring-2 ring-gray-300'
+                        : isDarkMode
+                        ? 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    }`}
+                    title="All Messages"
                   >
-                    <span>Discussions</span>
-                    <ChevronDown className={`w-4 h-4 text-gray-500 transition-transform ${filterDropdownOpen ? 'rotate-180' : ''}`} />
+                    All
                   </button>
-                  {filterDropdownOpen && (
-                    <div className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 min-w-[160px]">
-                      <button
-                        onClick={() => {
-                          setMessageFilter('all')
-                          setFilterDropdownOpen(false)
-                        }}
-                        className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-50 first:rounded-t-lg last:rounded-b-lg ${
-                          messageFilter === 'all' ? 'bg-gray-50 font-medium' : ''
-                        }`}
-                      >
-                        All Messages
-                      </button>
-                      <button
-                        onClick={() => {
-                          setMessageFilter('emily')
-                          setFilterDropdownOpen(false)
-                        }}
-                        className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-50 first:rounded-t-lg last:rounded-b-lg ${
-                          messageFilter === 'emily' ? 'bg-gray-50 font-medium' : ''
-                        }`}
-                      >
-                        Emily
-                      </button>
-                      <button
-                        onClick={() => {
-                          setMessageFilter('chase')
-                          setFilterDropdownOpen(false)
-                        }}
-                        className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-50 first:rounded-t-lg last:rounded-b-lg ${
-                          messageFilter === 'chase' ? 'bg-gray-50 font-medium' : ''
-                        }`}
-                      >
-                        Chase
-                      </button>
-                      <button
-                        onClick={() => {
-                          setMessageFilter('leo')
-                          setFilterDropdownOpen(false)
-                        }}
-                        className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-50 first:rounded-t-lg last:rounded-b-lg ${
-                          messageFilter === 'leo' ? 'bg-gray-50 font-medium' : ''
-                        }`}
-                      >
-                        Leo
-                      </button>
-                    </div>
-                  )}
+
+                  {/* Emily */}
+                  <button
+                    onClick={() => setMessageFilter('emily')}
+                    className={`w-8 h-8 rounded-full flex items-center justify-center transition-all border-2 border-gray-300 ${
+                      messageFilter === 'emily'
+                        ? 'ring-2 ring-purple-300'
+                        : 'hover:opacity-80'
+                    }`}
+                    title="Emily Messages"
+                  >
+                    <img src="/emily_icon.png" alt="Emily" className="w-9 h-9 rounded-full object-cover" />
+                  </button>
+
+                  {/* Chase */}
+                  <button
+                    onClick={() => setMessageFilter('chase')}
+                    className={`w-8 h-8 rounded-full flex items-center justify-center transition-all border-2 border-gray-300 ${
+                      messageFilter === 'chase'
+                        ? 'ring-2 ring-blue-300'
+                        : 'hover:opacity-80'
+                    }`}
+                    title="Chase Messages"
+                  >
+                    <img src="/chase_logo.png" alt="Chase" className="w-9 h-9 rounded-full object-cover" />
+                  </button>
+
+                  {/* Leo */}
+                  <button
+                    onClick={() => setMessageFilter('leo')}
+                    className={`w-8 h-8 rounded-full flex items-center justify-center transition-all border-2 border-gray-300 ${
+                      messageFilter === 'leo'
+                        ? 'ring-2 ring-green-300'
+                        : 'hover:opacity-80'
+                    }`}
+                    title="Leo Messages"
+                  >
+                    <img src="/leo_logo.jpg" alt="Leo" className="w-9 h-9 rounded-full object-cover" />
+                  </button>
                 </div>
-                <span className="text-gray-400">|</span>
-                <div className="text-sm lg:text-base text-gray-900">
+                <span className={isDarkMode ? 'text-gray-500' : 'text-gray-400'}>|</span>
+                <div className={`text-sm lg:text-base ${
+                  isDarkMode ? 'text-gray-100' : 'text-gray-900'
+                }`}>
                   {profile?.business_name || user?.user_metadata?.name || 'you'}
                 </div>
-                <span className="text-gray-400">|</span>
-                <div className="text-sm lg:text-base text-gray-700">
+                <span className={isDarkMode ? 'text-gray-500' : 'text-gray-400'}>|</span>
+                <div className={`text-sm lg:text-base ${
+                  isDarkMode ? 'text-gray-300' : 'text-gray-700'
+                }`}>
                   {selectedDate.toLocaleDateString('en-US', { 
                     year: 'numeric', 
                     month: 'long', 
@@ -573,44 +634,24 @@ function EmilyDashboard() {
               </div>
               
               <div className="flex items-center gap-2">
-                {/* WhatsApp Message Button */}
-                <button
-                  onClick={() => setShowWhatsAppModal(true)}
-                  className="p-2 rounded-md hover:bg-green-50 transition-colors border border-green-200 bg-green-50"
-                  title="Send WhatsApp Message"
-                >
-                  <MessageSquare className="w-5 h-5 text-green-600" />
-                </button>
-                
-                {/* Video and Call Icons */}
-                <button
-                  className="p-2 rounded-md hover:bg-gray-100 transition-colors border border-gray-200"
-                  title="Video"
-                >
-                  <Video className="w-5 h-5 text-gray-700" />
-                </button>
-                <button
-                  onClick={handleCallClick}
-                  className={`p-2 rounded-md transition-colors border ${
-                    isCallActive 
-                      ? 'bg-red-100 border-red-300 hover:bg-red-200' 
-                      : 'hover:bg-gray-100 border-gray-200'
-                  }`}
-                  title={isCallActive ? "End Call" : "Call"}
-                >
-                  <Phone className={`w-5 h-5 ${isCallActive ? 'text-red-600' : 'text-gray-700'}`} />
-                </button>
-                
                 {/* Panel Toggle Button */}
                 <button
                   onClick={() => setIsPanelOpen(!isPanelOpen)}
-                  className="p-2 rounded-md hover:bg-gray-100 transition-colors border border-gray-200"
+                  className={`p-2 rounded-md transition-colors border ${
+                    isDarkMode
+                      ? 'hover:bg-gray-700 border-gray-600 text-gray-300'
+                      : 'hover:bg-gray-100 border-gray-200'
+                  }`}
                   title={isPanelOpen ? "Close Panel" : "Open Panel"}
                 >
                   {isPanelOpen ? (
-                    <PanelLeft className="w-5 h-5 text-gray-700" />
+                    <PanelLeft className={`w-5 h-5 ${
+                      isDarkMode ? 'text-gray-300' : 'text-gray-700'
+                    }`} />
                   ) : (
-                    <PanelRight className="w-5 h-5 text-gray-700" />
+                    <PanelRight className={`w-5 h-5 ${
+                      isDarkMode ? 'text-gray-300' : 'text-gray-700'
+                    }`} />
                   )}
                 </button>
               </div>
@@ -619,87 +660,67 @@ function EmilyDashboard() {
         </div>
 
         {/* Main Content Area */}
-        <div className="flex-1 flex items-start md:bg-gray-50 bg-transparent h-full" style={{ minHeight: 0, overflow: 'hidden' }}>
+        <div className={`flex-1 flex items-start bg-transparent h-full ${
+          isDarkMode ? 'md:bg-gray-800' : 'md:bg-gray-50'
+        }`} style={{ minHeight: 0, overflow: 'hidden' }}>
             <div className="w-full h-full flex gap-2">
                 {/* Main Chat Area */}
               <div className="flex-1 h-full">
-                <div className="bg-white h-full relative">
-                  <Chatbot 
-                    profile={profile} 
-                    ref={chatbotRef} 
-                    isCallActive={isCallActive} 
-                    callStatus={callStatus} 
-                    onSpeakingChange={setIsCallSpeaking} 
-                    messageFilter={messageFilter}
-                    useV2={true}
-                    onOpenCustomContent={() => setShowCustomContentChatbot(true)}
-                    isModalOpen={showCustomContentChatbot}
-                    onRefreshChat={handleRefreshChat}
-                  />
+                <div className="h-full relative pt-0.5 px-16">
+                  <ATSNChatbot externalConversations={atsnConversationToLoad} />
                 </div>
               </div>
 
               {/* Right Side Panel - Part of main content */}
-              <div 
-                className={`hidden md:flex bg-white border-l border-gray-200 transition-all duration-300 ease-in-out overflow-hidden h-full ${
+              <div
+                className={`hidden md:flex border rounded-lg transition-all duration-300 ease-in-out overflow-hidden h-full ${
+                  isDarkMode
+                    ? 'bg-gray-900 border-gray-700'
+                    : 'bg-white border-gray-200'
+                } ${
                   isPanelOpen ? 'w-48 xl:w-64' : 'w-0'
                 }`}
               >
                 {isPanelOpen && (
                   <div className="h-full flex flex-col">
                     {/* Panel Header */}
-                    <div className="p-4 border-b border-gray-200 flex items-center justify-between bg-gray-50 flex-shrink-0">
-                      <h2 className="text-lg font-semibold text-gray-900">
-                        {isCallActive ? 'Calling Emily' : 'Past Discussions'}
+                    <div className={`p-4 border-b flex items-center justify-between flex-shrink-0 ${
+                      isDarkMode
+                        ? 'border-gray-700 bg-gray-800'
+                        : 'border-gray-200 bg-gray-50'
+                    }`}>
+                      <h2 className={`text-lg font-semibold ${
+                        isDarkMode ? 'text-gray-100' : 'text-gray-900'
+                      }`}>
+                        Past Discussions
                       </h2>
                       <button
                         onClick={() => setIsPanelOpen(false)}
-                        className="p-1.5 rounded-md hover:bg-gray-200 transition-colors"
+                        className={`p-1.5 rounded-md transition-colors ${
+                          isDarkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-200'
+                        }`}
                         title="Collapse Panel"
                       >
-                        <ChevronRight className="w-5 h-5 text-gray-600" />
+                        <ChevronRight className={`w-5 h-5 ${
+                          isDarkMode ? 'text-gray-400' : 'text-gray-600'
+                        }`} />
                       </button>
                     </div>
 
-                    {/* Call Display in Right Panel */}
-                    {isCallActive && (
-                      <div className="border-b border-gray-200 bg-green-50">
-                        <div className="p-4 flex items-center gap-3">
-                          <div className="relative">
-                            <Phone className="w-5 h-5 text-green-600" />
-                            <div className="absolute -top-1 -right-1 w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
-                            <div className="absolute -top-1 -right-1 w-3 h-3 bg-green-500 rounded-full animate-ping opacity-75"></div>
-                          </div>
-                          <span className="text-sm font-medium text-green-700">
-                            In call with Emily
-                          </span>
-                        </div>
-                        <div className="px-4 pb-4">
-                          <button
-                            onClick={handleCallClick}
-                            className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg transition-colors text-sm font-medium"
-                          >
-                            <Phone className="w-4 h-4 rotate-135" />
-                            <span>Disconnect</span>
-                          </button>
-                        </div>
-                      </div>
-                    )}
 
                     {/* Panel Content */}
                     <div className="flex-1 overflow-y-auto p-4">
-                      {isCallActive ? (
-                        /* Animated Sound Orb */
-                        <div className="flex items-center justify-center h-full">
-                          <VoiceOrb isSpeaking={isCallSpeaking} />
-                        </div>
-                      ) : loadingConversations ? (
+                      {loadingConversations ? (
                         <div className="flex items-center justify-center py-8">
-                          <div className="text-sm text-gray-500">Loading conversations...</div>
+                          <div className={`text-sm ${
+                            isDarkMode ? 'text-gray-400' : 'text-gray-500'
+                          }`}>Loading conversations...</div>
                         </div>
                       ) : conversations.length === 0 ? (
                         <div className="flex items-center justify-center py-8">
-                          <div className="text-sm text-gray-500">No conversations yet</div>
+                          <div className={`text-sm ${
+                            isDarkMode ? 'text-gray-400' : 'text-gray-500'
+                          }`}>No conversations yet</div>
                         </div>
                       ) : (
                         <div className="space-y-4">
@@ -728,8 +749,8 @@ function EmilyDashboard() {
                                   }}
                                   className={`p-2 rounded-lg cursor-pointer transition-colors ${
                                     isSelected 
-                                      ? 'bg-gray-100'
-                                      : 'hover:bg-gray-50'
+                                      ? isDarkMode ? 'bg-gray-700' : 'bg-gray-100'
+                                      : isDarkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-50'
                                   }`}
                                 >
                                   <div className="flex items-center gap-2">
@@ -748,12 +769,20 @@ function EmilyDashboard() {
                                     </div>
                                     <div className="flex-1 min-w-0">
                                       <div className="flex items-center justify-between mb-1">
-                                        <span className={`text-xs font-medium ${isUser ? 'text-pink-700' : 'text-purple-700'}`}>
+                                        <span className={`text-xs font-medium ${
+                                          isUser
+                                            ? 'text-pink-400'
+                                            : isDarkMode ? 'text-purple-300' : 'text-purple-700'
+                                        }`}>
                                           {isUser ? 'You' : 'Emily'}
                                         </span>
-                                        <span className="text-xs text-gray-400">{formattedDate}</span>
+                                        <span className={`text-xs ${
+                                          isDarkMode ? 'text-gray-500' : 'text-gray-400'
+                                        }`}>{formattedDate}</span>
                                       </div>
-                                      <p className="text-xs text-gray-700 line-clamp-2">{preview}</p>
+                                      <p className={`text-xs line-clamp-2 ${
+                                        isDarkMode ? 'text-gray-300' : 'text-gray-700'
+                                      }`}>{preview}</p>
                   </div>
                 </div>
               </div>
@@ -856,11 +885,6 @@ function EmilyDashboard() {
         }}
       />
       
-      {/* WhatsApp Message Modal */}
-      <WhatsAppMessageModal 
-        isOpen={showWhatsAppModal}
-        onClose={() => setShowWhatsAppModal(false)}
-      />
 
       {/* Mobile Chat History Panel - Full Screen */}
       {showMobileChatHistory && (

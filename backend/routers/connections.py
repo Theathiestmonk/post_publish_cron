@@ -1600,7 +1600,8 @@ def generate_oauth_url(platform: str, state: str) -> str:
         scope_string = get_meta_scope_string()
         
         # Build OAuth URL with config_id if available
-        oauth_url = f"{base_url}?client_id={client_id}&redirect_uri={redirect_uri}&state={state}&scope={scope_string}"
+        # Updated scopes to include read_insights for comprehensive analytics access
+        oauth_url = f"{base_url}?client_id={client_id}&redirect_uri={redirect_uri}&state={state}&scope=pages_manage_posts,pages_read_engagement,pages_show_list,ads_read,ads_management,business_management,read_insights"
         
         if facebook_config_id:
             oauth_url += f"&config_id={facebook_config_id}"
@@ -1615,7 +1616,19 @@ def generate_oauth_url(platform: str, state: str) -> str:
         # Use Instagram redirect URI for Instagram OAuth
         instagram_redirect_uri = f"{os.getenv('API_BASE_URL', '').rstrip('/')}/connections/auth/instagram/callback"
         
-        scope_string = get_meta_scope_string()
+        # Instagram for Business requires specific scopes
+        # Based on Facebook's official documentation and Zapier's implementation
+        instagram_scopes = [
+            "pages_show_list",           # List Facebook Pages
+            "pages_read_engagement",     # Read page engagement data
+            "instagram_basic",           # Basic Instagram account info
+            "instagram_content_publish", # Publish to Instagram
+            "pages_manage_posts",        # Manage page posts
+            "business_management",       # Business management
+            "instagram_manage_insights"  # Read Instagram insights and analytics
+        ]
+        
+        scope_string = ",".join(instagram_scopes)
         
         return f"{base_url}?client_id={client_id}&redirect_uri={instagram_redirect_uri}&state={state}&scope={scope_string}"
 
@@ -3352,10 +3365,15 @@ async def post_to_facebook(
 
         hashtags = post_data.get('hashtags', [])
 
-        image_url = post_data.get('image_url', '')
+        # Get image URL from content data if available, otherwise fallback to post_data
+        image_url = ''
+        if content_data and content_data.get('images') and len(content_data['images']) > 0:
+            image_url = content_data['images'][0]
+            print(f"✅ Using image URL from database: {image_url}")
+        else:
+            image_url = post_data.get('image_url', '')
+            print(f"⚠️ Using fallback image URL from request: {image_url}")
 
-        
-        
         # Combine title, message, and hashtags
 
         full_message = ""
@@ -4749,9 +4767,9 @@ async def test_instagram_pages(
 
         
         
-        # Test with more comprehensive scopes
+        # Test with more comprehensive scopes (including insights)
 
-        test_oauth_url = f"https://www.facebook.com/v18.0/dialog/oauth?client_id={facebook_app_id}&redirect_uri=https://agent-emily.onrender.com/connections/auth/instagram/callback&state={state}&scope=pages_show_list,pages_read_engagement,instagram_basic,instagram_content_publish,pages_manage_posts"
+        test_oauth_url = f"https://www.facebook.com/v18.0/dialog/oauth?client_id={facebook_app_id}&redirect_uri=https://agent-emily.onrender.com/connections/auth/instagram/callback&state={state}&scope=pages_show_list,pages_read_engagement,instagram_basic,instagram_content_publish,pages_manage_posts,instagram_manage_insights"
 
         
         
@@ -4817,8 +4835,24 @@ async def post_to_instagram(
 
         print(f"📝 Post data: {post_data}")
 
-        
-        
+        # Get content data from database using content_id
+        content_id = post_data.get('content_id')
+        print(f"🔍 Received content_id: {content_id} (type: {type(content_id)})")
+        content_data = None
+
+        if content_id:
+            try:
+                content_response = supabase_admin.table('created_content').select('*').eq('id', content_id).eq('user_id', current_user.id).execute()
+                if content_response.data and len(content_response.data) > 0:
+                    content_data = content_response.data[0]
+                    print(f"📄 Fetched content data for ID {content_id}: images={content_data.get('images', 'MISSING')}")
+                else:
+                    print(f"❌ No content found for ID {content_id}")
+            except Exception as e:
+                print(f"⚠️ Failed to fetch content data: {e}")
+        else:
+            print(f"❌ No content_id provided in request")
+
         # Get user's Instagram connection
 
         response = supabase_admin.table("platform_connections").select("*").eq("user_id", current_user.id).eq("platform", "instagram").eq("is_active", True).execute()
@@ -4885,10 +4919,15 @@ async def post_to_instagram(
 
         hashtags = post_data.get('hashtags', [])
 
-        image_url = post_data.get('image_url', '')
+        # Get image URL from content data if available, otherwise fallback to post_data
+        image_url = ''
+        if content_data and content_data.get('images') and len(content_data['images']) > 0:
+            image_url = content_data['images'][0]
+            print(f"✅ Using image URL from database: {image_url}")
+        else:
+            image_url = post_data.get('image_url', '')
+            print(f"⚠️ Using fallback image URL from request: {image_url}")
 
-        
-        
         # Combine title, message, and hashtags
 
         full_message = ""

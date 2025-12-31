@@ -171,7 +171,7 @@ async def _handle_social_media_async(payload: Optional[Any], user_id: str) -> Di
         # Generate content using OpenAI
         try:
             response = client.chat.completions.create(
-                model="gpt-4o",  # Use vision-capable model
+                model="gpt-4o-mini",  # Use vision-capable model
                 messages=messages,
                 temperature=0.7,
                 max_tokens=1000,
@@ -190,7 +190,7 @@ async def _handle_social_media_async(payload: Optional[Any], user_id: str) -> Di
                     {"role": "user", "content": prompt + "\n\nNote: Image is available but couldn't be analyzed due to timeout. Generate content based on the description and theme."}
                 ]
                 response = client.chat.completions.create(
-                    model="gpt-4o",
+                    model="gpt-4o-mini",
                     messages=text_only_messages,
                     temperature=0.7,
                     max_tokens=1000
@@ -517,7 +517,7 @@ async def _analyze_uploaded_image(image_url: str, user_description: str, busines
 Describe the visual elements, colors, composition, mood, and how it relates to the business context. Provide insights that can be used to create engaging social media content."""
             
             response = client_openai.chat.completions.create(
-                model="gpt-4o",
+                model="gpt-4o-mini",
                 messages=[
                     {"role": "user", "content": [
                         {"type": "text", "text": analysis_prompt},

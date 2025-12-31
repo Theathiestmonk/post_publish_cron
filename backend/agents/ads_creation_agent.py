@@ -300,7 +300,7 @@ Return the response as a JSON array with 3 ad copy objects.
 
             # Generate ad copy using OpenAI
             response = self.openai_client.chat.completions.create(
-                model="gpt-4",
+                model="gpt-4o-mini",
                 messages=[
                     {"role": "system", "content": "You are an expert digital marketing copywriter. Always respond with valid JSON."},
                     {"role": "user", "content": prompt}
@@ -315,7 +315,7 @@ Return the response as a JSON array with 3 ad copy objects.
                 await self.token_tracker.track_chat_completion_usage(
                     user_id=user_id,
                     feature_type="ads_creation",
-                    model_name="gpt-4",
+                    model_name="gpt-4o-mini",
                     response=response,
                     request_metadata={
                         "platform": state.current_platform,

@@ -57,7 +57,7 @@ class BlogService {
   }
 
   async makeRequest(endpoint, options = {}, requireAuth = true) {
-    const token = await this.getAuthToken()
+    let token = await this.getAuthToken()
     const url = `${API_URL}${endpoint}`
     
     console.log('Blog service request:', { url, token: token ? 'present' : 'missing', requireAuth })

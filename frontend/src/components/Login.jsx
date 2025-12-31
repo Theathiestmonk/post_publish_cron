@@ -76,14 +76,14 @@ function Login() {
       <div className="max-w-md w-full">
         {/* Header Section */}
         <div className="text-center mb-8">
-          <div className="mx-auto h-16 w-16 bg-gradient-to-r from-pink-500 to-purple-600 rounded-full flex items-center justify-center shadow-lg mb-4">
-            <span className="text-2xl font-bold text-white">E</span>
+          <div className="mx-auto h-16 w-16 bg-gray-400 rounded-full flex items-center justify-center shadow-lg mb-4">
+            <span className="text-2xl font-bold text-white">W</span>
           </div>
           <h1 className="text-3xl font-bold text-gray-800 mb-2">
-            Hi, I am Emily
+            Workvillage.ai
           </h1>
           <p className="text-gray-600">
-            Your digital marketing companion
+            The new normal of working
           </p>
         </div>
 
@@ -192,12 +192,12 @@ function Login() {
 
             {/* Sign Up Link */}
             <div className="text-center">
-              <span className="text-gray-500">New to Emily? </span>
+              <span className="text-gray-500">Don't have an account? </span>
               <Link
                 to="/signup"
                 className="text-pink-600 hover:text-pink-700 font-medium transition-colors"
               >
-                Create account
+                Sign up
               </Link>
             </div>
           </form>

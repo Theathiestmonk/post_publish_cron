@@ -403,8 +403,12 @@ const MobileNavigation = ({
               onClick={() => navigate('/')}
               className="flex items-center hover:opacity-80 transition-opacity duration-200"
             >
-              <div className="w-8 h-8 bg-gradient-to-r from-pink-500 to-purple-600 rounded-full flex items-center justify-center mr-3">
-                <span className="text-white font-bold text-sm">E</span>
+              <div className="w-8 h-8 rounded-full mr-3 overflow-hidden">
+                <img
+                  src="/emily_logo.png"
+                  alt="Emily"
+                  className="w-full h-full object-cover"
+                />
               </div>
               <div>
                 <h1 className="text-lg font-bold text-gray-900">Emily</h1>
@@ -543,8 +547,12 @@ const MobileNavigation = ({
             <div className="p-4 border-b border-gray-200">
               <div className="flex items-center justify-between">
                 <div className="flex items-center">
-                  <div className="w-10 h-10 bg-gradient-to-r from-pink-500 to-purple-600 rounded-full flex items-center justify-center mr-3">
-                    <span className="text-white font-bold text-lg">E</span>
+                  <div className="w-10 h-10 rounded-full mr-3 overflow-hidden">
+                    <img
+                      src="/emily_logo.png"
+                      alt="Emily"
+                      className="w-full h-full object-cover"
+                    />
                   </div>
                   <div>
                     <h1 className="text-xl font-bold text-gray-900">Emily</h1>

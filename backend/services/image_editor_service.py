@@ -33,7 +33,7 @@ class ImageEditorService:
             raise Exception("Gemini API key missing")
             
         self.gemini_client = genai.Client(api_key=self.gemini_api_key)
-        self.gemini_model = 'gemini-2.0-flash-exp'
+        self.gemini_model = 'gemini-2.5-flash-lite'
         self.gemini_image_model = 'gemini-2.5-flash-image-preview'
         self.token_tracker = TokenUsageService(self.supabase_url, self.supabase_key)
         
@@ -384,7 +384,7 @@ MANDATORY: The logo must be placed as a transparent overlay with absolutely no b
                 # Create a mock response object for tracking (Gemini doesn't provide usage)
                 class MockGeminiResponse:
                     def __init__(self):
-                        self.id = getattr(response, 'model_name', self.gemini_image_model)
+                        self.id = getattr(response, 'model_name', 'gemini-2.5-flash-image-preview')
                         self.data = [{"url": "gemini_generated"}]
                         self.usage = None
                 
@@ -468,7 +468,7 @@ Generate a high-quality edited image that follows the instructions while maintai
                 # Create a mock response object for tracking (Gemini doesn't provide usage)
                 class MockGeminiResponse:
                     def __init__(self):
-                        self.id = getattr(response, 'model_name', self.gemini_image_model)
+                        self.id = getattr(response, 'model_name', 'gemini-2.5-flash-image-preview')
                         self.data = [{"url": "gemini_generated"}]
                         self.usage = None
                 
