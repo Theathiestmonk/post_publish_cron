@@ -959,10 +959,7 @@ async def send_gmail_message(
         # Check if body contains HTML tags (comprehensive check)
         html_pattern = re.compile(r'<[^>]+>')
         has_html_tags = bool(html_pattern.search(body))
-        
-        print(f"📧 Email body contains HTML: {has_html_tags}")
-        print(f"📧 Body preview: {body[:200]}...")
-        
+
         # Create multipart message
         msg = MIMEMultipart('alternative')
         msg['To'] = to
@@ -970,8 +967,6 @@ async def send_gmail_message(
         msg['MIME-Version'] = '1.0'
         
         if has_html_tags:
-            print("📧 Creating HTML email with multipart structure")
-            
             # For multipart/alternative, order matters:
             # 1. Plain text first (for clients that don't support HTML)
             # 2. HTML second (for clients that support HTML - they'll prefer this)
@@ -988,8 +983,7 @@ async def send_gmail_message(
             text_part = MIMEText(plain_text, 'plain', 'utf-8')
             text_part.add_header('Content-Type', 'text/plain; charset=utf-8')
             msg.attach(text_part)
-            print(f"📧 Plain text part: {plain_text[:100]}...")
-            
+
             # Wrap HTML in proper document structure if not already wrapped
             # Some email clients require full HTML document structure
             if not body.strip().lower().startswith('<!doctype') and not body.strip().lower().startswith('<html'):
@@ -1011,17 +1005,14 @@ async def send_gmail_message(
             html_part = MIMEText(html_body, 'html', 'utf-8')
             html_part.add_header('Content-Type', 'text/html; charset=utf-8')
             msg.attach(html_part)
-            print("📧 HTML part attached with proper document structure and Content-Type header")
         else:
-            print("📧 Creating plain text email")
             # Plain text email only
             text_part = MIMEText(body, 'plain', 'utf-8')
             msg.attach(text_part)
         
         # Encode message properly for Gmail API
         raw_message = base64.urlsafe_b64encode(msg.as_bytes()).decode('utf-8')
-        print(f"📧 Message encoded, length: {len(raw_message)}")
-        
+
         # Create message dict
         message = {'raw': raw_message}
         

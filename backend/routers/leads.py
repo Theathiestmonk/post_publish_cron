@@ -934,7 +934,7 @@ async def import_leads_csv(
                 email = row.get('email', '').strip() or None
                 phone_number = row.get('phone_number', '').strip() or row.get('phone', '').strip() or None
                 source_platform = row.get('source_platform', 'manual').strip() or 'manual'
-                status = row.get('status', 'new').strip() or 'new'
+                status = row.get('status', 'new').strip().lower() or 'new'
                 follow_up_at = row.get('follow_up_at', '').strip() or None
                 
                 # Validate and parse follow_up_at - MANDATORY field
