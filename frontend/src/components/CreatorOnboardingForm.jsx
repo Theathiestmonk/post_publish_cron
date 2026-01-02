@@ -55,7 +55,6 @@ const CreatorOnboardingForm = forwardRef(({
     primary_goals: [],
     preferred_content_types: [],
     content_themes: [],
-    posting_frequency: '',
     best_time_to_post: [],
     
     // Step 6: Performance Insights & Competition
@@ -161,11 +160,10 @@ const CreatorOnboardingForm = forwardRef(({
   const activePlatforms = [
     'Instagram',
     'YouTube',
-    'LinkedIn',
-    'X (Twitter)',
+    'LinkedIn (Personal)',
     'Facebook',
-    'Website/Blog',
-    'Others'
+    'Google',
+    'Website'
   ]
 
   // Current online presence status
@@ -215,15 +213,6 @@ const CreatorOnboardingForm = forwardRef(({
     'Other'
   ]
 
-  // Posting frequencies
-  const postingFrequencies = [
-    '3x/Week',
-    'Weekly',
-    'Bi-Weekly',
-    'Bi monthly',
-    'Monthly',
-    'Manual'
-  ]
 
   // Best time to post
   const postingTimes = [
@@ -359,7 +348,6 @@ const CreatorOnboardingForm = forwardRef(({
         primary_goals: [],
         preferred_content_types: [],
         content_themes: [],
-        posting_frequency: '',
         best_time_to_post: [],
         best_performing_content_urls: [],
         hashtags_that_work_well: '',
@@ -861,7 +849,6 @@ const CreatorOnboardingForm = forwardRef(({
         'primary_goals',
         'preferred_content_types',
         'content_themes',
-        'posting_frequency',
         'best_time_to_post',
         // Step 6: Performance Insights & Competition
         'best_performing_content_urls',
@@ -1370,19 +1357,6 @@ const CreatorOnboardingForm = forwardRef(({
               )}
             </div>
 
-            <div>
-              <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1.5 sm:mb-2">Posting Frequency Preference</label>
-              <select
-                value={formData.posting_frequency}
-                onChange={(e) => handleInputChange('posting_frequency', e.target.value)}
-                className="w-full px-2 sm:px-3 md:px-4 py-2 sm:py-2.5 md:py-3 text-xs sm:text-sm md:text-base border border-gray-300 rounded-md sm:rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-transparent"
-              >
-                <option value="">Select posting frequency</option>
-                {postingFrequencies.map(frequency => (
-                  <option key={frequency} value={frequency}>{frequency}</option>
-                ))}
-              </select>
-            </div>
 
             <div>
               <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1.5 sm:mb-2">Best Time to Post (Select all that apply)</label>

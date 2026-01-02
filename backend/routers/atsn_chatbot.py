@@ -168,7 +168,7 @@ async def chat(
         agent = get_user_agent(user_id)
         
         # Process the query
-        response = agent.process_query(
+        response = await agent.process_query(
             user_query=chat_message.message,
             conversation_history=chat_message.conversation_history,
             user_id=user_id,

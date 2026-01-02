@@ -23,6 +23,9 @@ const OnboardingFormSelector = ({ onSelect }) => {
       
       // Save to localStorage first
       localStorage.setItem('selected_onboarding_type', formType)
+      localStorage.setItem('onboarding_form_selected', 'true')
+      sessionStorage.setItem('selected_onboarding_type', formType)
+      sessionStorage.setItem('onboarding_form_selected', 'true')
       
       // Save to database if user is authenticated
       try {

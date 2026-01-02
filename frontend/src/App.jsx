@@ -14,6 +14,7 @@ import CampaignsDashboard from './components/CampaignsDashboard'
 import AdsDashboard from './components/AdsDashboard'
 import BlogDashboard from './components/BlogDashboard'
 import LeadsDashboard from './components/LeadsDashboard'
+import CreatedContentDashboard from './components/CreatedContentDashboard'
 import ATSNDashboard from './components/ATSNDashboard'
 import PostSuggestionsDashboard from './components/PostSuggestionsDashboard'
 import Chatbot from './components/Chatbot'
@@ -203,13 +204,21 @@ function AppContent() {
             </ProtectedRoute>
           } 
         />
-        <Route 
-          path="/content" 
+        <Route
+          path="/content"
           element={
             <ProtectedRoute>
               <ContentDashboard />
             </ProtectedRoute>
-          } 
+          }
+        />
+        <Route
+          path="/created-content"
+          element={
+            <ProtectedRoute>
+              <CreatedContentDashboard />
+            </ProtectedRoute>
+          }
         />
         <Route 
           path="/calendar" 

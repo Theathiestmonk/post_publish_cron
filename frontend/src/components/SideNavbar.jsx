@@ -197,15 +197,21 @@ const SideNavbar = () => {
       icon: DiscussionsIcon
     },
     {
+      name: 'Content',
+      href: '/created-content',
+      icon: FileText
+    },
+    {
       name: 'Suggestions',
       href: '/post-suggestions',
       icon: Sparkles
     },
-    {
-      name: 'Writings',
-      href: '/blogs',
-      icon: Pen
-    },
+    // Temporarily hidden - Writings dashboard
+    // {
+    //   name: 'Writings',
+    //   href: '/blogs',
+    //   icon: Pen
+    // },
     {
       name: 'Happenings',
       href: '/social',
@@ -581,9 +587,10 @@ const SideNavbar = () => {
       </div>
 
       {/* Settings Menu */}
-      <SettingsMenu 
-        isOpen={isSettingsMenuOpen} 
-        onClose={() => setIsSettingsMenuOpen(false)} 
+      <SettingsMenu
+        isOpen={isSettingsMenuOpen}
+        onClose={() => setIsSettingsMenuOpen(false)}
+        isDarkMode={isDarkMode} 
       />
     </div>
   )

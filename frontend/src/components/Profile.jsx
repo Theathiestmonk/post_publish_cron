@@ -87,7 +87,6 @@ const Profile = () => {
         
         // Content Strategy
         monthly_budget_range: data?.monthly_budget_range || '',
-        posting_frequency: data?.posting_frequency || '',
         preferred_content_types: data?.preferred_content_types || [],
         content_themes: data?.content_themes || [],
         
@@ -120,20 +119,13 @@ const Profile = () => {
         instagram_profile_link: data?.instagram_profile_link || '',
         linkedin_company_link: data?.linkedin_company_link || '',
         youtube_channel_link: data?.youtube_channel_link || '',
-        x_twitter_profile: data?.x_twitter_profile || '',
         google_business_profile: data?.google_business_profile || '',
-        google_ads_account: data?.google_ads_account || '',
-        whatsapp_business: data?.whatsapp_business || '',
-        email_marketing_platform: data?.email_marketing_platform || '',
-        meta_ads_facebook: data?.meta_ads_facebook || false,
-        meta_ads_instagram: data?.meta_ads_instagram || false,
         
         // Platform-specific tone settings
         platform_tone_instagram: data?.platform_tone_instagram || [],
         platform_tone_facebook: data?.platform_tone_facebook || [],
         platform_tone_linkedin: data?.platform_tone_linkedin || [],
         platform_tone_youtube: data?.platform_tone_youtube || [],
-        platform_tone_x: data?.platform_tone_x || [],
         
         // "Other" Input Fields
         business_type_other: data?.business_type_other || '',
@@ -216,7 +208,6 @@ const Profile = () => {
       
       // Content Strategy
       monthly_budget_range: profile?.monthly_budget_range || '',
-      posting_frequency: profile?.posting_frequency || '',
       preferred_content_types: profile?.preferred_content_types || [],
       content_themes: profile?.content_themes || [],
       
@@ -249,20 +240,13 @@ const Profile = () => {
       platform_tone_facebook: profile?.platform_tone_facebook || [],
       platform_tone_linkedin: profile?.platform_tone_linkedin || [],
       platform_tone_youtube: profile?.platform_tone_youtube || [],
-      platform_tone_x: profile?.platform_tone_x || [],
-      
+
       // Platform Links
       facebook_page_name: profile?.facebook_page_name || '',
       instagram_profile_link: profile?.instagram_profile_link || '',
       linkedin_company_link: profile?.linkedin_company_link || '',
       youtube_channel_link: profile?.youtube_channel_link || '',
-      x_twitter_profile: profile?.x_twitter_profile || '',
       google_business_profile: profile?.google_business_profile || '',
-      google_ads_account: profile?.google_ads_account || '',
-      whatsapp_business: profile?.whatsapp_business || '',
-      email_marketing_platform: profile?.email_marketing_platform || '',
-      meta_ads_facebook: profile?.meta_ads_facebook || false,
-      meta_ads_instagram: profile?.meta_ads_instagram || false,
       
       // "Other" Input Fields
       business_type_other: profile?.business_type_other || '',
@@ -425,35 +409,15 @@ const Profile = () => {
     
     // Process current presence to show field:value format for ALL fields
     const processedPresence = currentPresence.map(presence => {
-      if (presence === 'Meta Ads (Facebook/Instagram)') {
-        const subOptions = []
-        if (metaAdsFacebook) subOptions.push('Facebook Ads')
-        if (metaAdsInstagram) subOptions.push('Instagram Ads')
-        
-        if (subOptions.length > 0) {
-          return `Meta Ads Account: ${subOptions.join(', ')}`
-        } else {
-          return 'Meta Ads Account: Not specified'
-        }
-      }
-      
       // For Website, show the actual URL
       if (presence === 'Website') {
         const websiteUrl = editing ? (editForm.website_url || '') : (profile?.website_url || '')
         return websiteUrl ? `Website: ${websiteUrl}` : 'Website: URL not provided'
       }
-      
+
       // For other fields, show in "field: value" format
       return `${presence}: Active`
     })
-
-    // If no current presence but we have Meta Ads data, show it anyway
-    if (currentPresence.length === 0 && (metaAdsFacebook || metaAdsInstagram)) {
-      const subOptions = []
-      if (metaAdsFacebook) subOptions.push('Facebook Ads')
-      if (metaAdsInstagram) subOptions.push('Instagram Ads')
-      processedPresence.push(`Meta Ads Account: ${subOptions.join(', ')}`)
-    }
 
     return (
       <div>
@@ -960,7 +924,6 @@ const Profile = () => {
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
                 {renderTextField('Monthly Marketing Budget', 'monthly_budget_range', null, 'text', 'e.g., ₹500-₹1000')}
-                {renderTextField('Posting Frequency', 'posting_frequency', null, 'text', 'e.g., Daily, Weekly')}
                 {renderArrayField('Preferred Content Types', 'preferred_content_types')}
                 {renderArrayField('Content Themes', 'content_themes')}
               </div>
@@ -1057,15 +1020,11 @@ const Profile = () => {
               </div>
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
-                {renderTextField('Facebook Page Name', 'facebook_page_name', null, 'text')}
+                {renderTextField('Facebook Page/Profile Link', 'facebook_page_name', null, 'url')}
                 {renderTextField('Instagram Profile Link', 'instagram_profile_link', null, 'url')}
                 {renderTextField('LinkedIn Company Link', 'linkedin_company_link', null, 'url')}
                 {renderTextField('YouTube Channel Link', 'youtube_channel_link', null, 'url')}
-                {renderTextField('X/Twitter Profile', 'x_twitter_profile', null, 'url')}
                 {renderTextField('Google Business Profile', 'google_business_profile', null, 'url')}
-                {renderTextField('Google Ads Account', 'google_ads_account', null, 'text')}
-                {renderTextField('WhatsApp Business', 'whatsapp_business', null, 'text')}
-                {renderTextField('Email Marketing Platform', 'email_marketing_platform', null, 'text')}
               </div>
             </div>
           </div>

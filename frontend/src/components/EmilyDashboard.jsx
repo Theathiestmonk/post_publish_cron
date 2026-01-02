@@ -46,7 +46,7 @@ import ATSNChatbot from './ATSNChatbot'
 import RecentTasks from './RecentTasks'
 import CustomContentChatbot from './CustomContentChatbot'
 import ContentCard from './ContentCard'
-import { Sparkles, TrendingUp, Target, BarChart3, FileText, Calendar, PanelRight, PanelLeft, X, ChevronRight, RefreshCw } from 'lucide-react'
+import { Sparkles, TrendingUp, Target, BarChart3, FileText, Calendar, PanelRight, PanelLeft, X, ChevronRight, RefreshCw, ChevronDown } from 'lucide-react'
 
 // Voice Orb Component with animated border (spring-like animation)
 const VoiceOrb = ({ isSpeaking }) => {
@@ -188,12 +188,44 @@ function EmilyDashboard() {
   })
   const hasSetInitialDate = useRef(false)
   const [messageFilter, setMessageFilter] = useState('all') // 'all', 'emily', 'chase', 'leo'
+  const [dateFilter, setDateFilter] = useState('today') // 'today', 'yesterday', '2_days_ago', etc.
+  const [showDateFilterDropdown, setShowDateFilterDropdown] = useState(false)
   const [showCustomContentChatbot, setShowCustomContentChatbot] = useState(false)
   const [showMobileChatHistory, setShowMobileChatHistory] = useState(false)
   const [isDarkMode, setIsDarkMode] = useState(getDarkModePreference)
 
   // Listen for dark mode changes from other components (like SideNavbar)
   useStorageListener('darkMode', setIsDarkMode)
+
+  // Generate date filter options for past 7 days
+  const dateFilterOptions = React.useMemo(() => {
+    const options = []
+    const today = new Date()
+
+    for (let i = 0; i < 7; i++) {
+      const date = new Date(today)
+      date.setDate(today.getDate() - i)
+
+      const dateStr = date.toISOString().split('T')[0]
+      const displayText = i === 0 ? 'Today' :
+                         i === 1 ? 'Yesterday' :
+                         `${date.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}`
+
+      options.push({
+        value: dateStr,
+        label: displayText,
+        date: date
+      })
+    }
+
+    return options
+  }, [])
+
+  // Get selected date filter label
+  const getSelectedDateFilterLabel = () => {
+    const option = dateFilterOptions.find(opt => opt.value === dateFilter)
+    return option ? option.label : 'Select Date'
+  }
 
   const handleRefreshChat = async () => {
     try {
@@ -266,6 +298,73 @@ function EmilyDashboard() {
       }
     }
   }, [conversations])
+
+  // Reload ATSN conversations when date filter changes
+  useEffect(() => {
+    console.log('Date filter changed to:', dateFilter)
+    if (user && dateFilter) {
+      console.log('Loading conversations for date:', dateFilter)
+
+      // First, clear any existing conversations to reset the chatbot
+      setAtsnConversationToLoad(null)
+
+      // Small delay to allow the chatbot to reset, then load new conversations
+      setTimeout(() => {
+        loadAtsnConversationsForDate().then(atsnConversations => {
+          console.log('Reloaded ATSN conversations for date filter:', dateFilter, 'conversations:', atsnConversations)
+
+          // Convert conversations to message format expected by ATSNChatbot
+          if (atsnConversations && atsnConversations.length > 0) {
+            let atsnMessages = []
+
+            // Process ATSN conversations
+            if (atsnConversations.length > 0) {
+              // Use the first conversation for this date (they should be ordered by creation time)
+              const conversation = atsnConversations[0]
+              console.log('Processing conversation:', conversation.id, 'with', conversation.messages?.length || 0, 'messages')
+              atsnMessages = conversation.messages.map(msg => ({
+                id: msg.id,
+                conversationId: conversation.id,
+                sender: msg.sender,
+                text: msg.text,
+                timestamp: msg.timestamp,
+                intent: msg.intent,
+                agent_name: msg.agent_name,
+                current_step: msg.current_step,
+                clarification_question: msg.clarification_question,
+                clarification_options: msg.clarification_options,
+                content_items: msg.content_items,
+                lead_items: msg.lead_items
+              }))
+            }
+
+            console.log('Setting ATSN conversation to load:', atsnMessages.length, 'messages')
+            setAtsnConversationToLoad([...atsnMessages])
+          } else {
+            console.log('No conversations found for date:', dateFilter)
+            setAtsnConversationToLoad([])
+          }
+        }).catch(error => {
+          console.error('Error loading conversations for date filter:', error)
+          setAtsnConversationToLoad([])
+        })
+      }, 100)
+    }
+  }, [dateFilter, user])
+
+  // Close date filter dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (showDateFilterDropdown && !event.target.closest('.date-filter-dropdown-container')) {
+        setShowDateFilterDropdown(false)
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [showDateFilterDropdown])
 
   // Apply dark mode to document body
   useEffect(() => {
@@ -361,8 +460,8 @@ function EmilyDashboard() {
     })
   }
 
-  // Function to load ATSN conversations for a specific date
-  const loadAtsnConversationsForDate = async (dateObj) => {
+  // Function to load ATSN conversations for the selected date filter
+  const loadAtsnConversationsForDate = async () => {
     try {
       const authToken = await getAuthToken()
       if (!authToken) {
@@ -370,9 +469,8 @@ function EmilyDashboard() {
         return []
       }
 
-      const dateStr = dateObj.toISOString().split('T')[0] // Format as YYYY-MM-DD
-
-      const response = await fetch(`${API_BASE_URL}/atsn/conversations?date=${dateStr}`, {
+      console.log('Fetching ATSN conversations for date:', dateFilter)
+      const response = await fetch(`${API_BASE_URL}/atsn/conversations?date=${dateFilter}`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -382,10 +480,12 @@ function EmilyDashboard() {
 
       if (response.ok) {
         const data = await response.json()
-        console.log('ATSN conversations for date:', data)
+        console.log('ATSN API response:', data)
+        console.log('Number of conversations returned:', data.conversations?.length || 0)
         return data.conversations || []
       } else {
-        console.error('Failed to load ATSN conversations:', response.status)
+        const errorText = await response.text()
+        console.error('Failed to load ATSN conversations:', response.status, errorText)
         return []
       }
     } catch (error) {
@@ -419,7 +519,7 @@ function EmilyDashboard() {
       })
 
       // Also load ATSN conversations for this date
-      const atsnConversations = await loadAtsnConversationsForDate(dateObj)
+      const atsnConversations = await loadAtsnConversationsForDate()
       console.log('Loaded ATSN conversations:', atsnConversations)
 
       // Convert to message format and load in chatbot
@@ -615,6 +715,8 @@ function EmilyDashboard() {
                     <img src="/leo_logo.jpg" alt="Leo" className="w-9 h-9 rounded-full object-cover" />
                   </button>
                 </div>
+
+
                 <span className={isDarkMode ? 'text-gray-500' : 'text-gray-400'}>|</span>
                 <div className={`text-sm lg:text-base ${
                   isDarkMode ? 'text-gray-100' : 'text-gray-900'
@@ -622,14 +724,47 @@ function EmilyDashboard() {
                   {profile?.business_name || user?.user_metadata?.name || 'you'}
                 </div>
                 <span className={isDarkMode ? 'text-gray-500' : 'text-gray-400'}>|</span>
-                <div className={`text-sm lg:text-base ${
-                  isDarkMode ? 'text-gray-300' : 'text-gray-700'
-                }`}>
-                  {selectedDate.toLocaleDateString('en-US', { 
-                    year: 'numeric', 
-                    month: 'long', 
-                    day: 'numeric' 
-                  })}
+                {/* Date Filter Dropdown */}
+                <div className="relative date-filter-dropdown-container">
+                  <button
+                    onClick={() => setShowDateFilterDropdown(!showDateFilterDropdown)}
+                    className={`flex items-center gap-1 px-2 py-1 rounded text-sm transition-all hover:bg-opacity-80 ${
+                      isDarkMode ? 'text-gray-300 hover:bg-gray-700' : 'text-gray-700 hover:bg-gray-100'
+                    }`}
+                    title="Filter conversations by date"
+                  >
+                    <span>{getSelectedDateFilterLabel()}</span>
+                    <ChevronDown className={`w-3 h-3 transition-transform ${
+                      showDateFilterDropdown ? 'rotate-180' : ''
+                    }`} />
+                  </button>
+
+                  {showDateFilterDropdown && (
+                    <div className={`absolute top-full mt-1 w-48 rounded-lg shadow-lg z-50 max-h-64 overflow-y-auto ${
+                      isDarkMode
+                        ? 'bg-gray-800 border border-gray-700 shadow-gray-900/50'
+                        : 'bg-white border border-gray-200'
+                    }`}>
+                      {dateFilterOptions.map((option) => (
+                        <button
+                          key={option.value}
+                          onClick={() => {
+                            setDateFilter(option.value)
+                            setShowDateFilterDropdown(false)
+                          }}
+                          className={`w-full text-left px-4 py-2 text-sm first:rounded-t-lg last:rounded-b-lg ${
+                            dateFilter === option.value
+                              ? 'bg-green-100 text-green-700 font-medium'
+                              : isDarkMode
+                              ? 'text-gray-200 hover:bg-gray-700'
+                              : 'text-gray-700 hover:bg-gray-50'
+                          }`}
+                        >
+                          {option.label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
               
@@ -666,17 +801,20 @@ function EmilyDashboard() {
             <div className="w-full h-full flex gap-2">
                 {/* Main Chat Area */}
               <div className="flex-1 h-full">
-                <div className="h-full relative pt-0.5 px-16">
-                  <ATSNChatbot externalConversations={atsnConversationToLoad} />
+                <div className="h-full relative pt-0.5 px-8 overflow-x-auto">
+                  <ATSNChatbot
+                    key={`atsn-chatbot-${dateFilter}`}
+                    externalConversations={atsnConversationToLoad}
+                  />
                 </div>
               </div>
 
               {/* Right Side Panel - Part of main content */}
               <div
-                className={`hidden md:flex border rounded-lg transition-all duration-300 ease-in-out overflow-hidden h-full ${
+                className={`hidden md:flex transition-all duration-300 ease-in-out overflow-hidden h-full ${
                   isDarkMode
-                    ? 'bg-gray-900 border-gray-700'
-                    : 'bg-white border-gray-200'
+                    ? 'bg-gray-900'
+                    : 'bg-white'
                 } ${
                   isPanelOpen ? 'w-48 xl:w-64' : 'w-0'
                 }`}
@@ -684,27 +822,16 @@ function EmilyDashboard() {
                 {isPanelOpen && (
                   <div className="h-full flex flex-col">
                     {/* Panel Header */}
-                    <div className={`p-4 border-b flex items-center justify-between flex-shrink-0 ${
+                    <div className={`p-3 lg:p-4 border-b flex items-center justify-between flex-shrink-0 ${
                       isDarkMode
-                        ? 'border-gray-700 bg-gray-800'
-                        : 'border-gray-200 bg-gray-50'
+                        ? 'border-gray-700'
+                        : 'border-gray-200'
                     }`}>
-                      <h2 className={`text-lg font-semibold ${
-                        isDarkMode ? 'text-gray-100' : 'text-gray-900'
+                      <span className={`text-sm font-medium ${
+                        isDarkMode ? 'text-gray-200' : 'text-gray-700'
                       }`}>
-                        Past Discussions
-                      </h2>
-                      <button
-                        onClick={() => setIsPanelOpen(false)}
-                        className={`p-1.5 rounded-md transition-colors ${
-                          isDarkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-200'
-                        }`}
-                        title="Collapse Panel"
-                      >
-                        <ChevronRight className={`w-5 h-5 ${
-                          isDarkMode ? 'text-gray-400' : 'text-gray-600'
-                        }`} />
-                      </button>
+                        Reminders
+                      </span>
                     </div>
 
 

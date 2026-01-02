@@ -16,6 +16,7 @@ import DualRangeSlider from './DualRangeSlider'
 const Onboarding = () => {
   const [selectedFormType, setSelectedFormType] = useState(null)
   const [checkingFormType, setCheckingFormType] = useState(true) // Loading state
+  const [onboardingFormSelected, setOnboardingFormSelected] = useState(false) // Track if form is properly selected
   const [currentStep, setCurrentStep] = useState(0)
   const [completedSteps, setCompletedSteps] = useState(new Set())
   const [userNavigatedToStep0, setUserNavigatedToStep0] = useState(false)
@@ -43,7 +44,6 @@ const Onboarding = () => {
     primary_goals: [],
     key_metrics_to_track: [],
     monthly_budget_range: '',
-    posting_frequency: '',
     preferred_content_types: [],
     content_themes: [],
     main_competitors: '',
@@ -68,11 +68,6 @@ const Onboarding = () => {
     instagram_profile_link: '',
     linkedin_company_link: '',
     youtube_channel_link: '',
-    x_twitter_profile: '',
-    google_business_profile: '',
-    google_ads_account: '',
-    whatsapp_business: '',
-    email_marketing_platform: '',
     // New fields for comprehensive onboarding
     target_audience_age_groups: [],
     target_audience_age_min: 16,
@@ -87,7 +82,6 @@ const Onboarding = () => {
     platform_tone_facebook: [],
     platform_tone_linkedin: [],
     platform_tone_youtube: [],
-    platform_tone_x: [],
   })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -203,11 +197,6 @@ const Onboarding = () => {
     topPerformingContentTypeOther: ''
   })
 
-  // State for Meta Ads sub-options
-  const [metaAdsSubOptions, setMetaAdsSubOptions] = useState({
-    facebookAds: false,
-    instagramAds: false
-  })
 
   // State for expandable cards
   const [expandedCards, setExpandedCards] = useState({
@@ -225,64 +214,150 @@ const Onboarding = () => {
   // Check for selected form type on mount
   useEffect(() => {
     const checkFormType = async () => {
-      setCheckingFormType(true)
-      
-      // First, check if onboarding is completed
+      // PRIORITY 1: Check localStorage/sessionStorage first (most reliable)
+      const savedFormType = localStorage.getItem('selected_onboarding_type') ||
+                           sessionStorage.getItem('selected_onboarding_type')
+      const formSelected = localStorage.getItem('onboarding_form_selected') === 'true' ||
+                          sessionStorage.getItem('onboarding_form_selected') === 'true'
+
+      console.log('Priority 1: Checking storage for saved form type:', { savedFormType, formSelected })
+
+      if (savedFormType && (savedFormType === 'business' || savedFormType === 'creator') && formSelected) {
+        console.log('Found valid form type in storage - using this as primary source:', savedFormType)
+        setSelectedFormType(savedFormType)
+        setOnboardingFormSelected(true)
+        setCheckingFormType(false)
+        return
+      }
+
+      // PRIORITY 2: Check profile API for onboarding status and type
       try {
         const profileResponse = await onboardingAPI.getProfile()
         console.log('Profile response:', profileResponse.data)
-        
-        // If onboarding is not completed, always show selector
-        if (profileResponse.data && profileResponse.data.onboarding_completed === false) {
-          console.log('Onboarding not completed - showing form selector')
-          setSelectedFormType(null)
-          // Clear any saved form type to force selection
-          localStorage.removeItem('selected_onboarding_type')
-          setCheckingFormType(false)
-          return
-        }
-        
-        // If onboarding is completed, check for form type
+
+        // If onboarding is completed, try to get form type from profile
         if (profileResponse.data && profileResponse.data.onboarding_completed === true) {
           if (profileResponse.data.onboarding_type) {
             const dbFormType = profileResponse.data.onboarding_type
             if (dbFormType === 'business' || dbFormType === 'creator') {
-              console.log('Onboarding completed - using saved form type:', dbFormType)
+              console.log('Found form type in completed profile - syncing to storage:', dbFormType)
+              // Sync to storage for future use
               localStorage.setItem('selected_onboarding_type', dbFormType)
+              localStorage.setItem('onboarding_form_selected', 'true')
+              sessionStorage.setItem('selected_onboarding_type', dbFormType)
+              sessionStorage.setItem('onboarding_form_selected', 'true')
               setSelectedFormType(dbFormType)
+              setOnboardingFormSelected(true)
               setCheckingFormType(false)
               return
             }
           }
+          // Onboarding is completed but no type found - this shouldn't happen
+          console.warn('Onboarding completed but no onboarding_type found in profile')
+        }
+
+        // If onboarding is not completed, clear any stale data
+        if (profileResponse.data && profileResponse.data.onboarding_completed === false) {
+          console.log('Onboarding not completed - clearing any stale form selection data')
+          localStorage.removeItem('selected_onboarding_type')
+          localStorage.removeItem('onboarding_form_selected')
+          sessionStorage.removeItem('selected_onboarding_type')
+          sessionStorage.removeItem('onboarding_form_selected')
+          setSelectedFormType(null)
+          setOnboardingFormSelected(false)
+          setCheckingFormType(false)
+          return
         }
       } catch (error) {
         console.log('Could not fetch profile for form type:', error)
+        // Continue to fallback - don't fail here
       }
-      
-      // Check localStorage as fallback (only if onboarding is completed or profile fetch failed)
-      const savedFormType = localStorage.getItem('selected_onboarding_type')
-      console.log('Checking saved form type from localStorage:', savedFormType)
-      
-      if (savedFormType && (savedFormType === 'business' || savedFormType === 'creator')) {
-        console.log('Found valid form type in localStorage:', savedFormType)
-        setSelectedFormType(savedFormType)
-        setCheckingFormType(false)
-        return
-      }
-      
-      // No form type found - show selector
-      console.log('No valid form type found - will show selector')
+
+      // PRIORITY 3: Final fallback - show selector
+      console.log('No valid form type found anywhere - showing selector')
       setSelectedFormType(null)
+      setOnboardingFormSelected(false)
       setCheckingFormType(false)
     }
     
     if (!authLoading && user) {
-      checkFormType()
+      // Only run checkFormType if we haven't already restored from storage
+      if (!selectedFormType) {
+        console.log('No form type in state, running profile check...')
+        checkFormType()
+      } else {
+        console.log('Form type already restored from storage, skipping profile check')
+        setCheckingFormType(false)
+      }
     } else if (!authLoading && !user) {
       setCheckingFormType(false)
       setSelectedFormType(null)
+      setOnboardingFormSelected(false)
     }
   }, [user, authLoading])
+
+  // Enhanced form selection persistence and restoration
+  // This ensures form selection is maintained across tab switches and browser refreshes
+  useEffect(() => {
+    // Check for saved form selection on mount and visibility change
+    const checkSavedSelection = () => {
+      const savedFormType = localStorage.getItem('selected_onboarding_type') ||
+                           sessionStorage.getItem('selected_onboarding_type')
+      const formSelected = localStorage.getItem('onboarding_form_selected') === 'true' ||
+                          sessionStorage.getItem('onboarding_form_selected') === 'true'
+
+      console.log('Checking saved selection on mount/visibility:', { savedFormType, formSelected })
+
+      if (savedFormType && (savedFormType === 'business' || savedFormType === 'creator') && formSelected) {
+        console.log('Restoring saved form selection:', savedFormType)
+        setSelectedFormType(savedFormType)
+        setOnboardingFormSelected(true)
+        setCheckingFormType(false)
+        return true
+      }
+      return false
+    }
+
+    // Check on mount immediately - this should run before checkFormType
+    console.log('Component mounted, checking for saved form selection...')
+    const storageCheckResult = checkSavedSelection()
+    if (storageCheckResult) {
+      console.log('Form selection restored from storage on mount - skipping profile check')
+      return // Don't run checkFormType if we already found a valid selection
+    }
+
+    // Handle visibility change (tab switching)
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        console.log('Tab became visible, checking form selection...')
+        checkSavedSelection()
+      }
+    }
+
+    // Handle storage changes (cross-tab communication)
+    const handleStorageChange = (e) => {
+      if (e.key === 'selected_onboarding_type' || e.key === 'onboarding_form_selected') {
+        console.log('Storage changed, rechecking selection...')
+        checkSavedSelection()
+      }
+    }
+
+    // Handle page focus (when returning to tab)
+    const handleFocus = () => {
+      console.log('Window focused, checking form selection...')
+      checkSavedSelection()
+    }
+
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    window.addEventListener('storage', handleStorageChange)
+    window.addEventListener('focus', handleFocus)
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+      window.removeEventListener('storage', handleStorageChange)
+      window.removeEventListener('focus', handleFocus)
+    }
+  }, [])
 
   // Handle form type selection
   const handleFormTypeSelect = (formType) => {
@@ -293,7 +368,13 @@ const Onboarding = () => {
     }
     // Set the form type - this will trigger re-render and show the correct form
     setSelectedFormType(formType)
+    setOnboardingFormSelected(true)
+
+    // Persist selection in multiple ways for reliability
     localStorage.setItem('selected_onboarding_type', formType)
+    localStorage.setItem('onboarding_form_selected', 'true')
+    sessionStorage.setItem('selected_onboarding_type', formType)
+    sessionStorage.setItem('onboarding_form_selected', 'true')
     
     // Clear old form data if switching between forms
     if (formType === 'creator') {
@@ -453,9 +534,7 @@ const Onboarding = () => {
   ]
 
   const socialPlatforms = [
-    'Instagram', 'Facebook', 'LinkedIn', 'YouTube', 'Pinterest', 
-    'X (Twitter)', 'TikTok', 'WhatsApp Business', 'Google Business Profile', 
-    'Snapchat', 'Quora', 'Reddit', 'Other'
+    'Instagram', 'Facebook', 'LinkedIn', 'YouTube', 'Google'
   ]
 
   const goals = [
@@ -473,9 +552,6 @@ const Onboarding = () => {
     '₹25,000–₹50,000', '₹50,000+'
   ]
 
-  const postingFrequencies = [
-    '3x/Week', 'Weekly', 'Bi-Weekly', 'Bi monthly', 'Monthly', 'Manual'
-  ]
 
   const contentTypes = [
     'Image Posts', 'Reels', 'Carousels', 'Stories', 'Blogs', 'Videos', 
@@ -554,9 +630,7 @@ const Onboarding = () => {
   ]
 
   const currentPresenceOptions = [
-    'Website', 'Facebook Page', 'Instagram', 'LinkedIn', 'X (formerly Twitter)', 
-    'YouTube', 'WhatsApp Business', 'Google Business Profile', 'Google Ads', 
-    'Meta Ads (Facebook/Instagram)', 'Email Marketing Platform', 'Other'
+    'Website', 'Facebook Page', 'Instagram', 'LinkedIn (Personal)', 'YouTube'
   ]
 
   const focusAreas = [
@@ -614,12 +688,6 @@ const Onboarding = () => {
     }))
   }
 
-  const handleMetaAdsSubOptionChange = (option, checked) => {
-    setMetaAdsSubOptions(prev => ({
-      ...prev,
-      [option]: checked
-    }))
-  }
 
   const toggleCard = (cardName) => {
     setExpandedCards(prev => ({
@@ -851,21 +919,20 @@ const Onboarding = () => {
         'business_name', 'business_type', 'industry', 'business_description', 'target_audience',
         'unique_value_proposition', 'brand_voice', 'brand_tone', 'website_url', 'phone_number',
         'street_address', 'city', 'state', 'country', 'timezone', 'social_media_platforms',
-        'primary_goals', 'key_metrics_to_track', 'monthly_budget_range', 'posting_frequency',
+        'primary_goals', 'key_metrics_to_track', 'monthly_budget_range',
         'preferred_content_types', 'content_themes', 'main_competitors', 'market_position',
         'products_or_services', 'important_launch_dates', 'planned_promotions_or_campaigns',
         'top_performing_content_types', 'best_time_to_post', 'successful_campaigns',
         'hashtags_that_work_well', 'customer_pain_points', 'typical_customer_journey',
         'automation_level', 'platform_specific_tone', 'current_presence', 'focus_areas',
         'platform_details', 'facebook_page_name', 'instagram_profile_link', 'linkedin_company_link',
-        'youtube_channel_link', 'x_twitter_profile', 'google_business_profile', 'google_ads_account',
-        'whatsapp_business', 'email_marketing_platform', 'meta_ads_facebook', 'meta_ads_instagram',
+        'youtube_channel_link',
         'target_audience_age_min', 'target_audience_age_max', 'target_audience_gender',
         'target_audience_life_stages', 'target_audience_professional_types',
         'target_audience_lifestyle_interests', 'target_audience_buyer_behavior',
         'successful_content_urls', 'primary_color', 'secondary_color', 'logo_url',
         'platform_tone_instagram', 'platform_tone_facebook', 'platform_tone_linkedin',
-        'platform_tone_youtube', 'platform_tone_x'
+        'platform_tone_youtube'
       ]
 
       // Filter formData to only include valid database fields
@@ -896,7 +963,6 @@ const Onboarding = () => {
         platform_tone_facebook: formData.platform_tone_facebook || [],
         platform_tone_linkedin: formData.platform_tone_linkedin || [],
         platform_tone_youtube: formData.platform_tone_youtube || [],
-        platform_tone_x: formData.platform_tone_x || [],
         // Populate the general target_audience field with all selected target audience details
         target_audience: [
           ...(formData.target_audience_age_min && formData.target_audience_age_max ? [`${formData.target_audience_age_min}-${formData.target_audience_age_max} years`] : []),
@@ -909,11 +975,7 @@ const Onboarding = () => {
           ...(formData.target_audience_lifestyle_interests && formData.target_audience_lifestyle_interests.includes('Other (please specify)') && otherInputs.lifestyleInterestsOther ? [otherInputs.lifestyleInterestsOther] : []),
           ...(formData.target_audience_buyer_behavior || []).filter(item => item !== 'Other (please specify)'),
           ...(formData.target_audience_buyer_behavior && formData.target_audience_buyer_behavior.includes('Other (please specify)') && otherInputs.buyerBehaviorOther ? [otherInputs.buyerBehaviorOther] : [])
-        ].filter(Boolean), // Remove any empty values
-        
-        // Include Meta Ads sub-options
-        meta_ads_facebook: metaAdsSubOptions.facebookAds,
-        meta_ads_instagram: metaAdsSubOptions.instagramAds
+        ].filter(Boolean) // Remove any empty values
       }
 
       const response = await onboardingAPI.submitOnboarding(submissionData)
@@ -1534,16 +1596,11 @@ const Onboarding = () => {
             </div>
 
             {/* Platform-Specific Input Fields */}
-            {(formData.current_presence.includes('Website') || 
-              formData.current_presence.includes('Facebook Page') || 
-              formData.current_presence.includes('Instagram') || 
-              formData.current_presence.includes('LinkedIn') || 
-              formData.current_presence.includes('X (formerly Twitter)') || 
-              formData.current_presence.includes('YouTube') || 
-              formData.current_presence.includes('Google Business Profile') || 
-              formData.current_presence.includes('Google Ads') || 
-              formData.current_presence.includes('WhatsApp Business') || 
-              formData.current_presence.includes('Email Marketing Platform')) && (
+            {(formData.current_presence.includes('Website') ||
+              formData.current_presence.includes('Facebook Page') ||
+              formData.current_presence.includes('Instagram') ||
+              formData.current_presence.includes('LinkedIn (Personal)') ||
+              formData.current_presence.includes('YouTube')) && (
               <div className="mt-6 p-4 bg-gray-50 rounded-lg">
                 <h4 className="text-sm font-medium text-gray-700 mb-4">Platform Details</h4>
                 <div className="space-y-4">
@@ -1599,7 +1656,7 @@ const Onboarding = () => {
                     </div>
                   )}
                   
-                  {formData.current_presence.includes('LinkedIn') && (
+                  {formData.current_presence.includes('LinkedIn (Personal)') && (
                     <div>
                       <label className="block text-sm font-medium text-gray-600 mb-1">LinkedIn Company Page Link</label>
                       <input
@@ -1638,83 +1695,6 @@ const Onboarding = () => {
                     </div>
                   )}
                   
-                  {formData.current_presence.includes('Google Business Profile') && (
-                    <div>
-                      <label className="block text-sm font-medium text-gray-600 mb-1">Google Business Profile Link</label>
-                      <input
-                        type="url"
-                        value={formData.google_business_profile || ''}
-                        onChange={(e) => handleInputChange('google_business_profile', e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-transparent"
-                        placeholder="e.g., maps.google.com/business/..."
-                      />
-                    </div>
-                  )}
-                  
-                  {formData.current_presence.includes('Google Ads') && (
-                    <div>
-                      <label className="block text-sm font-medium text-gray-600 mb-1">Google Ads Account Details</label>
-                      <input
-                        type="text"
-                        value={formData.google_ads_account || ''}
-                        onChange={(e) => handleInputChange('google_ads_account', e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-transparent"
-                        placeholder="e.g., account ID or email"
-                      />
-                    </div>
-                  )}
-                  
-                  {formData.current_presence.includes('WhatsApp Business') && (
-                    <div>
-                      <label className="block text-sm font-medium text-gray-600 mb-1">WhatsApp Business Details</label>
-                      <input
-                        type="text"
-                        value={formData.whatsapp_business || ''}
-                        onChange={(e) => handleInputChange('whatsapp_business', e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-transparent"
-                        placeholder="e.g., business name or mobile number"
-                      />
-                    </div>
-                  )}
-                  
-                  {formData.current_presence.includes('Email Marketing Platform') && (
-                    <div>
-                      <label className="block text-sm font-medium text-gray-600 mb-1">Email Marketing Platform</label>
-                      <input
-                        type="text"
-                        value={formData.email_marketing_platform || ''}
-                        onChange={(e) => handleInputChange('email_marketing_platform', e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-transparent"
-                        placeholder="e.g., Mailchimp, ConvertKit, etc."
-                      />
-                    </div>
-                  )}
-                  
-                  {formData.current_presence.includes('Meta Ads (Facebook/Instagram)') && (
-                    <div>
-                      <label className="block text-sm font-medium text-gray-600 mb-2">Meta Ads Account Details</label>
-                      <div className="flex items-center space-x-4">
-                        <label className="flex items-center space-x-2">
-                          <input
-                            type="checkbox"
-                            checked={metaAdsSubOptions.facebookAds}
-                            onChange={(e) => handleMetaAdsSubOptionChange('facebookAds', e.target.checked)}
-                            className="rounded border-gray-300 text-pink-600 focus:ring-pink-500"
-                          />
-                          <span className="text-sm text-gray-700">Facebook Ads</span>
-                        </label>
-                        <label className="flex items-center space-x-2">
-                          <input
-                            type="checkbox"
-                            checked={metaAdsSubOptions.instagramAds}
-                            onChange={(e) => handleMetaAdsSubOptionChange('instagramAds', e.target.checked)}
-                            className="rounded border-gray-300 text-pink-600 focus:ring-pink-500"
-                          />
-                          <span className="text-sm text-gray-700">Instagram Ads</span>
-                        </label>
-                      </div>
-                    </div>
-                  )}
                 </div>
               </div>
             )}
@@ -1847,19 +1827,6 @@ const Onboarding = () => {
                   <option value="">Select budget range</option>
                   {budgetRanges.map(range => (
                     <option key={range} value={range}>{range}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Posting Frequency *</label>
-                <select
-                  value={formData.posting_frequency}
-                  onChange={(e) => handleInputChange('posting_frequency', e.target.value)}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-transparent"
-                >
-                  <option value="">Select frequency</option>
-                  {postingFrequencies.map(freq => (
-                    <option key={freq} value={freq}>{freq}</option>
                   ))}
                 </select>
               </div>
@@ -2184,7 +2151,7 @@ const Onboarding = () => {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-200">
-                    {['Instagram', 'Facebook', 'LinkedIn', 'YouTube', 'X'].map(platform => (
+                    {['Instagram', 'Facebook', 'LinkedIn (Personal)', 'YouTube'].map(platform => (
                       <tr key={platform}>
                         <td className="px-4 py-2 text-sm text-gray-700">{platform}</td>
                         <td className="px-4 py-2">
@@ -2271,9 +2238,10 @@ const Onboarding = () => {
   }
 
   // REQUIRED: Show form selector if no form type selected - user MUST choose
-  // Simple check: if selectedFormType is null or not a valid value, show selector
-  if (!selectedFormType || (selectedFormType !== 'business' && selectedFormType !== 'creator')) {
-    console.log('Showing form selector. selectedFormType:', selectedFormType)
+  // Enhanced check: ensure both form type is selected AND properly persisted
+  if (!selectedFormType || !onboardingFormSelected ||
+      (selectedFormType !== 'business' && selectedFormType !== 'creator')) {
+    console.log('Showing form selector. selectedFormType:', selectedFormType, 'onboardingFormSelected:', onboardingFormSelected)
     return <OnboardingFormSelector onSelect={handleFormTypeSelect} />
   }
 

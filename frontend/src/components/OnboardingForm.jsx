@@ -44,7 +44,6 @@ const OnboardingForm = forwardRef(({
     primary_goals: [],
     key_metrics_to_track: [],
     monthly_budget_range: '',
-    posting_frequency: '',
     preferred_content_types: [],
     content_themes: [],
     main_competitors: '',
@@ -89,7 +88,6 @@ const OnboardingForm = forwardRef(({
     platform_tone_facebook: [],
     platform_tone_linkedin: [],
     platform_tone_youtube: [],
-    platform_tone_x: [],
   })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -259,7 +257,6 @@ const OnboardingForm = forwardRef(({
         primary_goals: [],
         key_metrics_to_track: [],
         monthly_budget_range: '',
-        posting_frequency: '',
         preferred_content_types: [],
         content_themes: [],
         main_competitors: '',
@@ -303,7 +300,6 @@ const OnboardingForm = forwardRef(({
         platform_tone_facebook: [],
         platform_tone_linkedin: [],
         platform_tone_youtube: [],
-        platform_tone_x: [],
       })
       setCurrentStep(0)
       setCompletedSteps(new Set())
@@ -328,7 +324,7 @@ const OnboardingForm = forwardRef(({
           'target_audience_life_stages', 'target_audience_professional_types',
           'target_audience_lifestyle_interests', 'target_audience_buyer_behavior',
           'platform_tone_instagram', 'platform_tone_facebook', 'platform_tone_linkedin',
-          'platform_tone_youtube', 'platform_tone_x', 'additional_colors', 'successful_content_urls'
+          'platform_tone_youtube', 'additional_colors', 'successful_content_urls'
         ]
         
         // Handle age range and gender defaults
@@ -471,9 +467,7 @@ const OnboardingForm = forwardRef(({
   ]
 
   const socialPlatforms = [
-    'Instagram', 'Facebook', 'LinkedIn', 'YouTube', 'Pinterest', 
-    'X (Twitter)', 'TikTok', 'WhatsApp Business', 'Google Business Profile', 
-    'Snapchat', 'Quora', 'Reddit', 'Other'
+    'Instagram', 'Facebook', 'LinkedIn', 'YouTube', 'Google', 'Website'
   ]
 
   const goals = [
@@ -491,9 +485,6 @@ const OnboardingForm = forwardRef(({
     '₹25,000–₹50,000', '₹50,000+'
   ]
 
-  const postingFrequencies = [
-    '3x/Week', 'Weekly', 'Bi-Weekly', 'Bi monthly', 'Monthly', 'Manual'
-  ]
 
   const contentTypes = [
     'Image Posts', 'Reels', 'Carousels', 'Stories', 'Blogs', 'Videos', 
@@ -571,9 +562,7 @@ const OnboardingForm = forwardRef(({
   ]
 
   const currentPresenceOptions = [
-    'Website', 'Facebook Page', 'Instagram', 'LinkedIn', 'X (formerly Twitter)', 
-    'YouTube', 'WhatsApp Business', 'Google Business Profile', 'Google Ads', 
-    'Meta Ads (Facebook/Instagram)', 'Email Marketing Platform', 'Other'
+    'Website', 'Facebook', 'Instagram', 'LinkedIn (Personal)', 'YouTube'
   ]
 
   const focusAreas = [
@@ -760,7 +749,6 @@ const OnboardingForm = forwardRef(({
         platform_tone_facebook: formData.platform_tone_facebook || [],
         platform_tone_linkedin: formData.platform_tone_linkedin || [],
         platform_tone_youtube: formData.platform_tone_youtube || [],
-        platform_tone_x: formData.platform_tone_x || [],
         // Populate the general target_audience field with all selected target audience details
         target_audience: [
           ...(formData.target_audience_age_min && formData.target_audience_age_max ? [`${formData.target_audience_age_min}-${formData.target_audience_age_max} years`] : []),
@@ -829,6 +817,7 @@ const OnboardingForm = forwardRef(({
       // Prepare the data for submission
       const submissionData = {
         ...formData,
+        onboarding_type: 'business',
         // Populate the general target_audience field with all selected target audience details
         target_audience: [
           ...(formData.target_audience_age_min && formData.target_audience_age_max ? [`${formData.target_audience_age_min}-${formData.target_audience_age_max} years`] : []),
@@ -1435,16 +1424,6 @@ const OnboardingForm = forwardRef(({
               </div>
             </div>
 
-            <div>
-              <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1.5 sm:mb-2">Website URL</label>
-              <input
-                type="url"
-                value={formData.website_url}
-                onChange={(e) => handleInputChange('website_url', e.target.value)}
-                className="w-full px-2 sm:px-3 md:px-4 py-2 sm:py-2.5 md:py-3 text-xs sm:text-sm md:text-base border border-gray-300 rounded-md sm:rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-transparent"
-                placeholder="https://yourwebsite.com"
-              />
-            </div>
 
             <div>
               <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1.5 sm:mb-2">Phone Number *</label>
@@ -1590,16 +1569,16 @@ const OnboardingForm = forwardRef(({
                     </div>
                   )}
 
-                  {/* Facebook Page */}
-                  {formData.current_presence.includes('Facebook Page') && (
+                  {/* Facebook */}
+                  {formData.current_presence.includes('Facebook') && (
                     <div>
-                      <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1.5 sm:mb-2">Facebook Page Name</label>
+                      <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1.5 sm:mb-2">Facebook Page/Profile Link</label>
                       <input
-                        type="text"
+                        type="url"
                         value={formData.facebook_page_name}
                         onChange={(e) => handleInputChange('facebook_page_name', e.target.value)}
                         className="w-full px-2 sm:px-3 md:px-4 py-2 sm:py-2.5 md:py-3 text-xs sm:text-sm md:text-base border border-gray-300 rounded-md sm:rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-transparent"
-                        placeholder="@yourpage or Your Page Name"
+                        placeholder="https://facebook.com/yourpage"
                       />
                     </div>
                   )}
@@ -1619,7 +1598,7 @@ const OnboardingForm = forwardRef(({
                   )}
 
                   {/* LinkedIn */}
-                  {formData.current_presence.includes('LinkedIn') && (
+                  {formData.current_presence.includes('LinkedIn (Personal)') && (
                     <div>
                       <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1.5 sm:mb-2">LinkedIn Company Link</label>
                       <input
@@ -1646,115 +1625,9 @@ const OnboardingForm = forwardRef(({
                     </div>
                   )}
 
-                  {/* X (Twitter) */}
-                  {formData.current_presence.includes('X (formerly Twitter)') && (
-                    <div>
-                      <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1.5 sm:mb-2">X (Twitter) Profile</label>
-                      <input
-                        type="text"
-                        value={formData.x_twitter_profile}
-                        onChange={(e) => handleInputChange('x_twitter_profile', e.target.value)}
-                        className="w-full px-2 sm:px-3 md:px-4 py-2 sm:py-2.5 md:py-3 text-xs sm:text-sm md:text-base border border-gray-300 rounded-md sm:rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-transparent"
-                        placeholder="@yourhandle"
-                      />
-                    </div>
-                  )}
 
-                  {/* Google Business Profile */}
-                  {formData.current_presence.includes('Google Business Profile') && (
-                    <div>
-                      <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1.5 sm:mb-2">Google Business Profile</label>
-                      <input
-                        type="url"
-                        value={formData.google_business_profile}
-                        onChange={(e) => handleInputChange('google_business_profile', e.target.value)}
-                        className="w-full px-2 sm:px-3 md:px-4 py-2 sm:py-2.5 md:py-3 text-xs sm:text-sm md:text-base border border-gray-300 rounded-md sm:rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-transparent"
-                        placeholder="https://business.google.com/yourbusiness"
-                      />
-                    </div>
-                  )}
                 </div>
 
-                {/* Marketing platform details - Only show if user has selected marketing platforms */}
-                {(formData.current_presence.includes('Google Ads') || 
-                  formData.current_presence.includes('Meta Ads (Facebook/Instagram)') || 
-                  formData.current_presence.includes('Email Marketing Platform') || 
-                  formData.current_presence.includes('WhatsApp Business')) && (
-                  <div className="space-y-4 mt-6">
-                    <h4 className="text-lg font-medium text-gray-800">Marketing Platform Details</h4>
-                    
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {/* Google Ads */}
-                      {formData.current_presence.includes('Google Ads') && (
-                        <div>
-                          <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1.5 sm:mb-2">Google Ads Account</label>
-                          <input
-                            type="text"
-                            value={formData.google_ads_account}
-                            onChange={(e) => handleInputChange('google_ads_account', e.target.value)}
-                            className="w-full px-2 sm:px-3 md:px-4 py-2 sm:py-2.5 md:py-3 text-xs sm:text-sm md:text-base border border-gray-300 rounded-md sm:rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-transparent"
-                            placeholder="Account ID or Email"
-                          />
-                        </div>
-                      )}
-
-                      {/* WhatsApp Business */}
-                      {formData.current_presence.includes('WhatsApp Business') && (
-                        <div>
-                          <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1.5 sm:mb-2">WhatsApp Business</label>
-                          <input
-                            type="text"
-                            value={formData.whatsapp_business}
-                            onChange={(e) => handleInputChange('whatsapp_business', e.target.value)}
-                            className="w-full px-2 sm:px-3 md:px-4 py-2 sm:py-2.5 md:py-3 text-xs sm:text-sm md:text-base border border-gray-300 rounded-md sm:rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-transparent"
-                            placeholder="+1234567890"
-                          />
-                        </div>
-                      )}
-
-                      {/* Email Marketing Platform */}
-                      {formData.current_presence.includes('Email Marketing Platform') && (
-                        <div>
-                          <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1.5 sm:mb-2">Email Marketing Platform</label>
-                          <input
-                            type="text"
-                            value={formData.email_marketing_platform}
-                            onChange={(e) => handleInputChange('email_marketing_platform', e.target.value)}
-                            className="w-full px-2 sm:px-3 md:px-4 py-2 sm:py-2.5 md:py-3 text-xs sm:text-sm md:text-base border border-gray-300 rounded-md sm:rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-transparent"
-                            placeholder="Mailchimp, Constant Contact, etc."
-                          />
-                        </div>
-                      )}
-
-                      {/* Meta Ads */}
-                      {formData.current_presence.includes('Meta Ads (Facebook/Instagram)') && (
-                        <div className="col-span-2">
-                          <label className="block text-sm font-medium text-gray-700 mb-3">Meta Ads Account Details</label>
-                          <div className="space-y-3">
-                             <label className="flex items-center space-x-3">
-                               <input
-                                 type="checkbox"
-                                 checked={formData.meta_ads_facebook}
-                                 onChange={(e) => handleInputChange('meta_ads_facebook', e.target.checked)}
-                                 className="rounded border-gray-300 text-pink-600 focus:ring-pink-500"
-                               />
-                               <span className="text-sm text-gray-700">Facebook Ads</span>
-                             </label>
-                             <label className="flex items-center space-x-3">
-                               <input
-                                 type="checkbox"
-                                 checked={formData.meta_ads_instagram}
-                                 onChange={(e) => handleInputChange('meta_ads_instagram', e.target.checked)}
-                                 className="rounded border-gray-300 text-pink-600 focus:ring-pink-500"
-                               />
-                               <span className="text-sm text-gray-700">Instagram Ads</span>
-                             </label>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
               </div>
             )}
           </div>
@@ -1868,19 +1741,6 @@ const OnboardingForm = forwardRef(({
                 </select>
               </div>
 
-              <div>
-                <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1.5 sm:mb-2">Posting Frequency</label>
-                <select
-                  value={formData.posting_frequency}
-                  onChange={(e) => handleInputChange('posting_frequency', e.target.value)}
-                  className="w-full px-2 sm:px-3 md:px-4 py-2 sm:py-2.5 md:py-3 text-xs sm:text-sm md:text-base border border-gray-300 rounded-md sm:rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-transparent"
-                >
-                  <option value="">Select posting frequency</option>
-                  {postingFrequencies.map(frequency => (
-                    <option key={frequency} value={frequency}>{frequency}</option>
-                  ))}
-                </select>
-              </div>
             </div>
           </div>
         )
@@ -2223,7 +2083,7 @@ const OnboardingForm = forwardRef(({
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-200">
-                    {['Instagram', 'Facebook', 'LinkedIn', 'YouTube', 'X'].map(platform => (
+                    {['Instagram', 'Facebook', 'LinkedIn (Personal)', 'YouTube'].map(platform => (
                       <tr key={platform}>
                         <td className="px-4 py-2 text-sm text-gray-700">{platform}</td>
                         <td className="px-4 py-2">

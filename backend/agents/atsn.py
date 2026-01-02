@@ -43,6 +43,7 @@ from pydantic import BaseModel, Field
 from langgraph.graph import StateGraph, END
 import google.generativeai as genai
 import openai
+import aiohttp
 from supabase import create_client, Client
 from utils.embedding_context import get_profile_context_with_embedding
 
@@ -233,6 +234,788 @@ def detect_and_replace_pii_in_query(query: str) -> tuple[str, list, list]:
     return sanitized_query, original_emails, original_phones
 
 
+# ==================== TREND ANALYSIS FUNCTIONS ====================
+
+async def get_trends_from_grok(topic: str, business_context: dict) -> dict:
+    """Fetch social media trends from Grok API for content generation"""
+    import aiohttp
+
+    grok_api_key = os.getenv('GROK_API_KEY')
+    grok_api_url = os.getenv('GROK_API_URL', 'https://api.x.ai/v1/chat/completions')
+    grok_model = os.getenv('GROK_MODEL', 'grok-4-1-fast-non-reasoning')
+
+    logger.info(f"🔍 Starting trend analysis for topic: '{topic}' using model: {grok_model}")
+
+    if not grok_api_key:
+        logger.warning("GROK_API_KEY not found, returning default trends")
+        return {
+            "trends": [
+                {
+                    "trend_name": "General Content",
+                    "description": "Create engaging, valuable content for your audience",
+                    "why_it_works": "Builds trust and engagement with consistent value",
+                    "content_angle": "Share helpful insights and practical advice",
+                    "example_hook": "Did you know...",
+                    "recommended_format": "Feed Post"
+                }
+            ]
+        }
+
+    from datetime import datetime
+    current_datetime = datetime.now()
+    current_date = current_datetime.strftime("%Y-%m-%d")
+    current_time = current_datetime.strftime("%H:%M:%S UTC")
+
+    trend_prompt = f"""You are a social media trend analyst. CURRENT DATE/TIME: {current_date} at {current_time}
+
+TASK: Identify current and emerging Instagram content trends related to the following topic. TOPIC: {topic} TARGET AUDIENCE: {business_context.get('target_audience', 'General audience')} PLATFORM: Instagram
+
+OUTPUT REQUIREMENTS: Return ONLY valid JSON in the following structure: {{ "trends": [ {{ "trend_name": "Short name of the trend", "description": "What this trend is about in 1–2 lines", "why_it_works": "Why this trend performs well on Instagram", "content_angle": "How a brand can use this trend", "example_hook": "An example opening hook or line", "recommended_format": "Feed Post | Reel | Carousel" }} ] }}
+
+RULES: - Provide 3 to 5 relevant trends - Trends must be practical and currently usable - No explanations outside the JSON"""
+
+    # Log the complete trend analysis prompt
+    logger.info(f"🎯 Complete trend analysis prompt being sent to Grok:")
+    logger.info("=" * 80)
+    logger.info(trend_prompt)
+    logger.info("=" * 80)
+
+    try:
+        async with aiohttp.ClientSession() as session:
+            headers = {
+                'Authorization': f'Bearer {grok_api_key}',
+                'Content-Type': 'application/json'
+            }
+
+            payload = {
+                'model': grok_model,
+                'messages': [{'role': 'user', 'content': trend_prompt}],
+                'max_tokens': 1000,
+                'temperature': 0.7
+            }
+
+            async with session.post(grok_api_url, json=payload, headers=headers) as response:
+                if response.status == 200:
+                    result = await response.json()
+                    content = result['choices'][0]['message']['content'].strip()
+
+                    # Extract JSON from response
+                    import json
+                    json_start = content.find('{')
+                    json_end = content.rfind('}') + 1
+                    if json_start != -1 and json_end > json_start:
+                        json_content = content[json_start:json_end]
+                        parsed_result = json.loads(json_content)
+
+                        # Log the trends for debugging
+                        trends = parsed_result.get('trends', [])
+                        logger.info(f"🎯 Grok API returned {len(trends)} trends for topic: '{topic}'")
+                        for i, trend in enumerate(trends[:3]):  # Log first 3 trends
+                            logger.info(f"   Trend {i+1}: {trend.get('trend_name', 'N/A')} - {trend.get('content_angle', 'N/A')[:50]}...")
+
+                        return parsed_result
+                    else:
+                        logger.error(f"Could not extract JSON from image enhancer response: {content}")
+                        return {
+                            "image_prompt": f"Create a professional Instagram image for: {generated_post.get('title', '')}",
+                            "aspect_ratio": "1:1",
+                            "negative_prompt": "text, logos, watermarks"
+                        }
+                else:
+                    logger.error(f"Grok API error: {response.status} - {await response.text()}")
+                    return {"trends": []}
+
+    except Exception as e:
+        logger.error(f"❌ Error calling Grok API: {e}")
+        logger.info("🔄 Falling back to default trends")
+        return {"trends": []}
+
+
+def parse_trends_for_content(trends_json: dict) -> dict:
+    """Parse Grok trends JSON into content generation format"""
+
+    trends = trends_json.get('trends', [])
+    if not trends:
+        return {
+            'primary_trend': 'General Content',
+            'content_angle': 'Create engaging, valuable content',
+            'example_hook': 'Did you know...',
+            'supporting_trends': [],
+            'format': 'Feed Post'
+        }
+
+    # Use first trend as primary
+    primary = trends[0]
+
+    return {
+        'primary_trend': primary.get('trend_name', 'General Content'),
+        'content_angle': primary.get('content_angle', 'Create engaging content'),
+        'example_hook': primary.get('example_hook', 'Here\'s something interesting...'),
+        'supporting_trends': [t.get('trend_name', '') for t in trends[1:3]],  # Next 2 trends
+        'format': primary.get('recommended_format', 'Feed Post')
+    }
+
+
+def get_instagram_prompt(payload: dict, business_context: dict, parsed_trends: dict, profile_assets: dict = None, post_design_type: str = "general", image_type: str = "general") -> str:
+    """Generate Instagram-optimized content prompt"""
+
+    from datetime import datetime
+    current_datetime = datetime.now()
+    current_date = current_datetime.strftime("%Y-%m-%d")
+    current_time = current_datetime.strftime("%H:%M:%S UTC")
+
+    # Build brand context using helper function
+    brand_context = build_content_brand_context(profile_assets or {})
+
+    return f"""
+You are a professional Instagram content creator and copywriter. CURRENT DATE/TIME: {current_date} at {current_time}
+
+BUSINESS CONTEXT:
+Brand Name: {business_context.get('business_name', 'Business')}
+Industry: {business_context.get('industry', 'General')}
+Target Audience: {business_context.get('target_audience', 'General audience')}
+Brand Voice: {business_context.get('brand_voice', 'Professional and friendly')}
+Brand Tone: {business_context.get('brand_tone', 'Approachable')}
+Post Design Type: {post_design_type}
+{brand_context}
+
+CONTENT STRATEGY INPUT (FROM TREND ANALYSIS):
+Primary Trend: {parsed_trends.get('primary_trend')}
+Trend-Based Content Angle: {parsed_trends.get('content_angle')}
+Example Hook Inspiration: {parsed_trends.get('example_hook')}
+Supporting Trends: {", ".join(parsed_trends.get('supporting_trends', []))}
+Recommended Format: {parsed_trends.get('format')}
+
+CONTENT IDEA:
+{payload.get('content_idea', '')}
+
+INSTAGRAM CONTENT REQUIREMENTS:
+- Platform: Instagram
+- Format: {parsed_trends.get('format')}
+- Caption Style: Scroll-stopping, conversational, value-driven
+- Emoji Usage: Natural and engaging
+- CTA: Include exactly ONE clear CTA
+- Line Breaks: Use short paragraphs for readability
+- Avoid generic advice — be specific and actionable
+
+TASK:
+Create a complete Instagram post optimized for engagement and relevance to the trend.
+
+FORMAT (Return ONLY this format, no extra text):
+
+TITLE: [Hook-based title, max 60 characters]
+
+CAPTION:
+[Trend-aligned Instagram caption using the angle and hook]
+
+HASHTAGS:
+[7–10 relevant Instagram hashtags, space-separated]
+"""
+
+
+def get_platform_specific_prompt(platform: str, payload: dict, business_context: dict, parsed_trends: dict, profile_assets: dict = None) -> str:
+    """Return platform-optimized prompt based on platform type"""
+
+    platform_lower = platform.lower()
+
+    if platform_lower == 'instagram':
+        # Extract classified types from payload for Instagram
+        post_design_type = payload.get('post_design_type', 'general')
+        if post_design_type != 'general':
+            post_design_type = classify_post_design_type(post_design_type)
+        return get_instagram_prompt(payload, business_context, parsed_trends, profile_assets, post_design_type)
+    else:
+        # Fallback to general social media prompt for now
+        from datetime import datetime
+        current_datetime = datetime.now()
+        current_date = current_datetime.strftime("%Y-%m-%d")
+        current_time = current_datetime.strftime("%H:%M:%S UTC")
+
+        # Build brand context for other platforms too
+        brand_context = build_content_brand_context(profile_assets or {})
+
+        return f"""You are a professional social media content creator specializing in {payload.get('platform', 'social media')} posts for businesses. CURRENT DATE/TIME: {current_date} at {current_time}
+
+BUSINESS CONTEXT:
+{business_context.get('business_name', 'Business')}
+Industry: {business_context.get('industry', 'General')}
+Target Audience: {business_context.get('target_audience', 'General audience')}
+Brand Voice: {business_context.get('brand_voice', 'Professional and friendly')}
+Brand Tone: {business_context.get('brand_tone', 'Approachable')}
+{brand_context}
+
+CONTENT REQUIREMENTS:
+- Platform: {payload.get('platform', 'Social Media')}
+- Channel: {payload.get('channel', 'Social Media')}
+- Content Idea: {payload.get('content_idea', '')}
+
+TASK:
+Create a complete social media post with the following structure:
+
+TITLE: [Create an engaging title for the post (max 60 characters)]
+
+CONTENT: [Write the full post content with emojis and engaging copy]
+
+HASHTAGS: [Provide 5-8 relevant hashtags separated by spaces]
+
+Return ONLY in this exact format, no other text or explanations."""
+
+
+def parse_instagram_response(response_text: str) -> dict:
+    """Parse Instagram-specific response format"""
+
+    lines = response_text.split('\n')
+    content_data = {
+        'title': '',
+        'content': '',
+        'hashtags': []
+    }
+
+    current_section = None
+
+    for line in lines:
+        line = line.strip()
+        if line.startswith('TITLE:'):
+            content_data['title'] = line.replace('TITLE:', '').strip()
+            current_section = 'title'
+        elif line.startswith('CAPTION:'):
+            content_data['content'] = line.replace('CAPTION:', '').strip()
+            current_section = 'caption'
+        elif line.startswith('HASHTAGS:'):
+            hashtags_text = line.replace('HASHTAGS:', '').strip()
+            content_data['hashtags'] = hashtags_text.split()
+            current_section = 'hashtags'
+        elif current_section == 'caption' and line:
+            content_data['content'] += ' ' + line
+        elif current_section == 'hashtags' and line:
+            # Continue collecting hashtags from subsequent lines
+            content_data['hashtags'].extend(line.split())
+
+    return content_data
+
+
+async def generate_image_enhancer_prompt(generated_post: dict, payload: dict, business_context: dict, parsed_trends: dict, profile_assets: dict = None, image_type: str = "general") -> dict:
+    """Generate an enhanced image prompt using AI based on the generated content"""
+
+    from datetime import datetime
+    current_datetime = datetime.now()
+    current_date = current_datetime.strftime("%Y-%m-%d")
+    current_time = current_datetime.strftime("%H:%M:%S UTC")
+
+    # Build brand assets and location context using helper functions
+    brand_assets_context = build_image_enhancer_brand_assets(profile_assets or {}, business_context)
+    location_context = build_location_context(business_context)
+
+    image_prompt_enhancer = f"""
+You are an expert visual prompt engineer for AI image generation, specializing in Instagram content. CURRENT DATE/TIME: {current_date} at {current_time}
+
+INPUT CONTEXT:
+Platform: Instagram
+Post Format: {parsed_trends.get('format', 'Feed Post')}
+Industry: {business_context.get('industry', 'General')}
+Target Audience: {business_context.get('target_audience', 'General audience')}
+Brand Tone: {business_context.get('brand_tone', 'Approachable')}
+Brand Voice: {business_context.get('brand_voice', 'Professional and friendly')}
+Image Type: {image_type} (classified from user input)
+
+{brand_assets_context}
+
+{location_context}
+
+INSTAGRAM POST CONTENT:
+Title: {generated_post.get('title', '')}
+Caption: {generated_post.get('content', '')}
+Original Idea: {payload.get('content_idea', '')}
+
+PRIMARY GOAL:
+Create a visually compelling image prompt that:
+- Instantly communicates the core message of the post
+- Matches Instagram aesthetics and trends
+- Feels natural, human, and scroll-stopping
+- Aligns with the brand tone and audience
+
+IMAGE PROMPT REQUIREMENTS:
+- Describe the main subject clearly
+- Specify environment/background
+- Define mood, lighting, and color palette
+- Include composition and camera perspective
+- Ensure Instagram-friendly framing (4:5 or square)
+- Avoid text-heavy visuals (no captions on image)
+- Avoid logos, watermarks, or brand names
+- Photorealistic unless illustration fits better
+
+OUTPUT FORMAT (Return ONLY this JSON):
+
+{{
+  "image_prompt": "A single, detailed image generation prompt",
+  "aspect_ratio": "1:1 or 4:5",
+  "negative_prompt": "Things to avoid in the image"
+}}
+"""
+
+    try:
+        # Log the complete image enhancer prompt
+        logger.info(f"🎨 Complete image enhancer prompt being sent to GPT-4o-mini:")
+        logger.info("=" * 80)
+        logger.info(image_prompt_enhancer)
+        logger.info("=" * 80)
+
+        logger.info(f"🎨 Generating enhanced image prompt with GPT-4o-mini at {current_datetime.strftime('%Y-%m-%d %H:%M:%S UTC')}")
+
+        if openai_client:
+            response = openai_client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[{"role": "user", "content": image_prompt_enhancer}],
+                max_tokens=400,
+                temperature=0.7
+            )
+
+            enhancer_response = response.choices[0].message.content.strip()
+
+            # Parse JSON response
+            import json
+            json_start = enhancer_response.find('{')
+            json_end = enhancer_response.rfind('}') + 1
+
+            if json_start != -1 and json_end > json_start:
+                json_content = enhancer_response[json_start:json_end]
+                enhanced_prompt_data = json.loads(json_content)
+
+                logger.info(f"✅ Enhanced image prompt generated: {enhanced_prompt_data.get('visual_style', 'unknown')} style")
+                return enhanced_prompt_data
+            else:
+                logger.error(f"Could not parse JSON from image enhancer response: {enhancer_response}")
+                return {
+                    "image_prompt": f"Create a professional Instagram image for: {generated_post.get('title', '')}",
+                    "visual_style": "photorealistic",
+                    "aspect_ratio": "1:1",
+                    "negative_prompt": "text, logos, watermarks, blurry"
+                }
+        else:
+            logger.warning("OpenAI client not available for image enhancer")
+            return {
+                "image_prompt": f"Create a professional Instagram image for: {generated_post.get('title', '')}",
+                "visual_style": "photorealistic",
+                "aspect_ratio": "1:1",
+                "negative_prompt": "text, logos, watermarks, blurry"
+            }
+
+    except Exception as e:
+        logger.error(f"❌ Error generating enhanced image prompt: {e}")
+        return {
+            "image_prompt": f"Create a professional Instagram image for: {generated_post.get('title', '')}",
+            "aspect_ratio": "1:1",
+            "negative_prompt": "text, logos, watermarks, blurry"
+        }
+
+
+# ==================== CLASSIFICATION HELPERS ====================
+
+def classify_post_design_type(user_input: str) -> str:
+    """Classify user input into post design categories for content generation"""
+    if not user_input:
+        return "general"
+
+    user_input_lower = user_input.lower()
+
+    # News category
+    if any(word in user_input_lower for word in ['news', 'update', 'announcement', 'breaking', 'latest', 'current']):
+        return "news"
+
+    # Trendy category
+    elif any(word in user_input_lower for word in ['trendy', 'trend', 'viral', 'popular', 'hot', 'fashion', 'style']):
+        return "trendy"
+
+    # Educational category
+    elif any(word in user_input_lower for word in ['educational', 'learn', 'teach', 'tutorial', 'guide', 'how to', 'tips', 'advice']):
+        return "educational"
+
+    # Informative category
+    elif any(word in user_input_lower for word in ['informative', 'info', 'facts', 'data', 'statistics', 'insights', 'analysis']):
+        return "informative"
+
+    # Announcement category
+    elif any(word in user_input_lower for word in ['announcement', 'launch', 'release', 'new', 'coming soon']):
+        return "announcement"
+
+    # BTS (Behind-the-Scenes) category
+    elif any(word in user_input_lower for word in ['bts', 'behind the scenes', 'behind-the-scenes', 'process', 'making of', 'how we']):
+        return "bts"
+
+    # UGC (User-Generated Content) category
+    elif any(word in user_input_lower for word in ['ugc', 'user generated', 'user-generated', 'customer', 'testimonial', 'review']):
+        return "ugc"
+
+    else:
+        return "general"
+
+
+def get_visual_style_from_image_type(image_type: str) -> str:
+    """Map classified image type to appropriate visual style for image generation"""
+    if not image_type or image_type == "general":
+        return "photorealistic"
+
+    image_type_lower = image_type.lower()
+
+    # Graphic-First Post Types → illustration/flat design
+    if any(word in image_type_lower for word in ['poster', 'graphic', 'typography', 'text-only', 'quote card', 'stat', 'data card', 'announcement banner', 'offer', 'discount poster', 'countdown', 'event poster', 'reminder card', 'cta graphic', 'infographic']):
+        return "flat design"
+
+    # Photo-Based Post Types → photorealistic
+    elif any(word in image_type_lower for word in ['product photo', 'lifestyle', 'flat-lay', 'close-up', 'studio', 'environmental', 'in-use', 'team photo', 'founder photo', 'office', 'workspace', 'behind-the-scenes photo']):
+        return "photorealistic"
+
+    # Illustration & Visual Art → illustration/3D
+    elif any(word in image_type_lower for word in ['illustration', 'vector', 'character', 'icon', 'isometric', 'hand-drawn', 'abstract']):
+        return "illustration"
+
+    # Brand Identity Posts → flat design
+    elif any(word in image_type_lower for word in ['brand color', 'mood board', 'font', 'typography', 'pattern', 'texture', 'logo placement', 'rebrand']):
+        return "flat design"
+
+    # Social Proof Visuals → photorealistic or illustration
+    elif any(word in image_type_lower for word in ['testimonial', 'review', 'star-rating', 'case-study', 'client logo']):
+        return "photorealistic"
+
+    # Informational Visuals → illustration/flat design
+    elif any(word in image_type_lower for word in ['chart', 'graph', 'timeline', 'process flow', 'faq']):
+        return "flat design"
+
+    # Creative / Experimental → illustration
+    elif any(word in image_type_lower for word in ['collage', 'split-screen', 'brutalist', 'minimalist', 'maximalist', 'editorial', 'magazine']):
+        return "illustration"
+
+    # Default fallback
+    else:
+        return "photorealistic"
+
+
+def classify_image_type(user_input: str) -> str:
+    """Classify user input into detailed image type categories for image generation"""
+    if not user_input:
+        return "general"
+
+    user_input_lower = user_input.lower()
+
+    # Graphic-First Post Types
+    if any(word in user_input_lower for word in ['poster', 'graphic', 'banner', 'typography', 'text-only', 'quote card', 'stat', 'data card', 'announcement banner', 'offer', 'discount poster', 'countdown', 'event poster', 'reminder card', 'cta graphic']):
+        return "graphic"
+
+    # Photo-Based Post Types
+    elif any(word in user_input_lower for word in ['product photo', 'lifestyle', 'flat-lay', 'close-up', 'studio', 'environmental', 'in-use', 'team photo', 'founder photo', 'office', 'workspace', 'behind-the-scenes photo']):
+        return "photo"
+
+    # Photo + Graphic Hybrid
+    elif any(word in user_input_lower for word in ['text overlay', 'brand frame', 'gradient overlay', 'icon overlay', 'highlighted callout', 'before-after', 'comparison']):
+        return "hybrid"
+
+    # Illustration & Visual Art
+    elif any(word in user_input_lower for word in ['illustration', 'vector', 'character', 'icon', 'isometric', 'hand-drawn', '3d', 'abstract']):
+        return "illustration"
+
+    # Carousel-Style Static Sets
+    elif any(word in user_input_lower for word in ['carousel', 'multi-slide', 'quote set', 'step-by-step', 'listicle', 'comparison slides', 'storytelling slides']):
+        return "carousel"
+
+    # Brand Identity Posts
+    elif any(word in user_input_lower for word in ['brand color', 'mood board', 'font', 'typography', 'pattern', 'texture', 'logo placement', 'rebrand']):
+        return "brand"
+
+    # Social Proof Visuals
+    elif any(word in user_input_lower for word in ['testimonial', 'review', 'star-rating', 'case-study', 'client logo']):
+        return "social_proof"
+
+    # Informational Visuals
+    elif any(word in user_input_lower for word in ['infographic', 'chart', 'graph', 'timeline', 'process flow', 'faq']):
+        return "informational"
+
+    # Community & Culture
+    elif any(word in user_input_lower for word in ['employee spotlight', 'culture quote', 'team celebration', 'milestone', 'thank-you']):
+        return "community"
+
+    # Seasonal & Occasion
+    elif any(word in user_input_lower for word in ['festival', 'holiday', 'seasonal', 'special-day']):
+        return "seasonal"
+
+    # Interactive Static Visuals
+    elif any(word in user_input_lower for word in ['question card', 'poll', 'this or that', 'guess-the-answer', 'comment-to-engage']):
+        return "interactive"
+
+    # Creative / Experimental
+    elif any(word in user_input_lower for word in ['collage', 'split-screen', 'brutalist', 'minimalist', 'maximalist', 'editorial', 'magazine']):
+        return "creative"
+
+    # Utility / Filler Visuals
+    elif any(word in user_input_lower for word in ['grid', 'spacer', 'filler', 'placeholder', 'schedule reminder']):
+        return "utility"
+
+    else:
+        return "general"
+
+
+# ==================== BUSINESS CONTEXT HELPERS ====================
+
+def extract_text_field(profile_record: dict, field_name: str, default_value: str = '', required: bool = False) -> str:
+    """Extract and validate a text field from profile record"""
+    value = profile_record.get(field_name)
+
+    if value is None or value == '':
+        if required:
+            logger.warning(f"⚠️ Required field '{field_name}' is empty in profile record, using default: '{default_value}'")
+        else:
+            logger.debug(f"📝 Optional field '{field_name}' is empty, using default: '{default_value}'")
+        return default_value
+
+    # Validate string type
+    if not isinstance(value, str):
+        logger.warning(f"⚠️ Field '{field_name}' is not a string (type: {type(value)}), converting to string")
+        value = str(value)
+
+    logger.debug(f"✅ Extracted field '{field_name}': '{value[:50]}{'...' if len(value) > 50 else ''}'")
+    return value
+
+
+def extract_array_field(profile_record: dict, field_name: str, default_value: str = '', required: bool = False) -> str:
+    """Extract first item from an array field in profile record"""
+    array_value = profile_record.get(field_name)
+
+    if not array_value or not isinstance(array_value, list) or len(array_value) == 0:
+        if required:
+            logger.warning(f"⚠️ Required array field '{field_name}' is empty or invalid, using default: '{default_value}'")
+        else:
+            logger.debug(f"📝 Optional array field '{field_name}' is empty, using default: '{default_value}'")
+        return default_value
+
+    first_item = array_value[0]
+
+    # Validate the first item
+    if first_item is None or first_item == '':
+        logger.warning(f"⚠️ First item in array field '{field_name}' is empty, using default: '{default_value}'")
+        return default_value
+
+    if not isinstance(first_item, str):
+        logger.warning(f"⚠️ Array field '{field_name}' first item is not a string (type: {type(first_item)}), converting")
+        first_item = str(first_item)
+
+    logger.debug(f"✅ Extracted array field '{field_name}': '{first_item}' (from array of {len(array_value)} items)")
+    return first_item
+
+
+def extract_color_field(profile_record: dict, field_name: str) -> str:
+    """Extract color field (can be None, no validation needed)"""
+    color_value = profile_record.get(field_name)
+
+    if color_value is not None:
+        logger.debug(f"✅ Extracted color field '{field_name}': '{color_value}'")
+    else:
+        logger.debug(f"📝 Color field '{field_name}' is not set (optional)")
+
+    return color_value
+
+
+def extract_color_array_field(profile_record: dict, field_name: str) -> list:
+    """Extract color array field"""
+    color_array = profile_record.get(field_name, [])
+
+    if not isinstance(color_array, list):
+        logger.warning(f"⚠️ Color array field '{field_name}' is not a list (type: {type(color_array)}), using empty array")
+        return []
+
+    logger.debug(f"✅ Extracted color array field '{field_name}': {len(color_array)} colors")
+    return color_array
+
+
+def get_business_context_from_profile(profile_record: dict) -> dict:
+    """Extract structured business context from profile record using individual field extraction"""
+
+    if not profile_record:
+        logger.warning("❌ Profile record is None or empty, using all defaults")
+        profile_record = {}
+
+    # Count available fields for logging
+    available_fields = [k for k, v in profile_record.items() if v is not None and v != '' and v != []]
+    logger.info(f"📊 Profile record analysis: {len(available_fields)}/{len(profile_record)} fields populated")
+
+    # Extract each field individually with validation
+    context = {
+        # Core business information
+        'business_name': extract_text_field(profile_record, 'business_name', 'Business', required=True),
+        'business_description': extract_text_field(profile_record, 'business_description', '', required=False),
+
+        # Brand personality
+        'brand_tone': extract_text_field(profile_record, 'brand_tone', 'Professional', required=False),
+        'brand_voice': extract_text_field(profile_record, 'brand_voice', 'Professional and friendly', required=False),
+
+        # Business categorization
+        'industry': extract_array_field(profile_record, 'industry', 'General', required=False),
+        'target_audience': extract_array_field(profile_record, 'target_audience', 'General audience', required=False),
+
+        # Unique value
+        'unique_value_proposition': extract_text_field(profile_record, 'unique_value_proposition', '', required=False),
+
+        # Brand colors (optional)
+        'primary_color': extract_color_field(profile_record, 'primary_color'),
+        'secondary_color': extract_color_field(profile_record, 'secondary_color'),
+        'brand_colors': extract_color_array_field(profile_record, 'brand_colors'),
+
+        # Location and timezone context
+        'timezone': extract_text_field(profile_record, 'timezone', '', required=False),
+        'location_city': extract_text_field(profile_record, 'location_city', '', required=False),
+        'location_state': extract_text_field(profile_record, 'location_state', '', required=False),
+        'location_country': extract_text_field(profile_record, 'location_country', '', required=False)
+    }
+
+    # Log summary of extracted context
+    color_status = f"{bool(context['primary_color'])}/{bool(context['secondary_color'])}"
+    location_info = []
+    if context.get('location_city'): location_info.append(context['location_city'])
+    if context.get('location_country'): location_info.append(context['location_country'])
+    location_str = ', '.join(location_info) if location_info else 'Not specified'
+
+    logger.info(f"📋 Context extraction complete: Business='{context['business_name']}', Industry='{context['industry']}', Location='{location_str}', Colors={color_status}")
+
+    return context
+
+def get_profile_context_with_structured_data(profile_data: dict) -> dict:
+    """Legacy function - now uses structured data instead of embeddings"""
+    return get_business_context_from_profile(profile_data)
+
+
+# ==================== BRAND ASSET HELPERS ====================
+
+def build_brand_color_instructions(profile_assets: dict, business_context: dict) -> str:
+    """Build conditional color instructions based on available brand assets"""
+    primary = profile_assets.get('primary_color')
+    secondary = profile_assets.get('secondary_color')
+    brand_colors = profile_assets.get('brand_colors', [])
+
+    if primary and secondary:
+        color_text = f"""
+BRAND COLORS:
+- Primary: {primary}
+- Secondary: {secondary}
+- Use primary color for main elements, secondary for accents and highlights"""
+
+        if brand_colors:
+            color_text += f"\n- Additional brand colors: {', '.join(brand_colors)}"
+
+        return color_text
+
+    elif primary:
+        color_text = f"""
+BRAND COLOR:
+- Primary: {primary}
+- Use this color consistently throughout the design"""
+
+        if brand_colors:
+            color_text += f"\n- Additional brand colors: {', '.join(brand_colors)}"
+
+        return color_text
+
+    elif brand_colors:
+        return f"""
+BRAND COLORS:
+- Available colors: {', '.join(brand_colors)}
+- Use these brand colors strategically in the design"""
+
+    else:
+        return f"""
+COLOR PALETTE:
+- Use professional, modern colors suitable for {business_context.get('industry', 'General')} industry
+- Focus on colors that appeal to {business_context.get('target_audience', 'General audience')}"""
+
+
+def build_content_brand_context(profile_assets: dict) -> str:
+    """Build brand context for content generation prompts"""
+    if profile_assets.get('primary_color') and profile_assets.get('secondary_color'):
+        return f"""
+Primary Brand Color: {profile_assets['primary_color']}
+Secondary Brand Color: {profile_assets['secondary_color']}
+Visual Style: Use these colors strategically in any visual suggestions"""
+    elif profile_assets.get('primary_color'):
+        return f"""
+Primary Brand Color: {profile_assets['primary_color']}
+Visual Style: Use this color as the main brand color in visual suggestions"""
+    else:
+        return """
+Visual Style: Use professional, modern colors suitable for your industry"""
+
+
+def build_location_context(business_context: dict) -> str:
+    """Build location-aware context for image generation"""
+    location_parts = []
+
+    if business_context.get('location_city'):
+        location_parts.append(business_context['location_city'])
+    if business_context.get('location_state'):
+        location_parts.append(business_context['location_state'])
+    if business_context.get('location_country'):
+        location_parts.append(business_context['location_country'])
+
+    if location_parts:
+        location_str = ', '.join(location_parts)
+        timezone = business_context.get('timezone', '')
+
+        location_context = f"""
+LOCATION CONTEXT:
+Business Location: {location_str}"""
+
+        if timezone:
+            location_context += f"\nTimezone: {timezone}"
+
+        # Add location-specific imagery suggestions
+        location_context += f"""
+Location-Inspired Elements: Consider incorporating subtle local landmarks, architectural styles, or cultural elements from {location_str} that would resonate with the local audience. Adapt the imagery to reflect the local environment and aesthetic preferences of {business_context.get('location_city', 'the local area')}."""
+
+        return location_context
+    else:
+        return """
+LOCATION CONTEXT:
+No specific location information available. Use universally appealing, professional imagery that works across different regions and cultures."""
+
+
+def build_image_enhancer_brand_assets(profile_assets: dict, business_context: dict) -> str:
+    """Build brand assets context for image enhancer prompts"""
+    primary = profile_assets.get('primary_color')
+    secondary = profile_assets.get('secondary_color')
+    brand_colors = profile_assets.get('brand_colors', [])
+
+    if primary and secondary:
+        color_text = f"""
+BRAND ASSETS:
+Primary Color: {primary}
+Secondary Color: {secondary}
+Color Usage: Use primary color for main elements, secondary for accents and highlights"""
+
+        if brand_colors:
+            color_text += f"\nAdditional Brand Colors: {', '.join(brand_colors)}"
+
+        return color_text
+
+    elif primary:
+        color_text = f"""
+BRAND ASSETS:
+Primary Color: {primary}
+Color Usage: Use this color consistently throughout the design"""
+
+        if brand_colors:
+            color_text += f"\nAdditional Brand Colors: {', '.join(brand_colors)}"
+
+        return color_text
+
+    elif brand_colors:
+        return f"""
+BRAND ASSETS:
+Available Brand Colors: {', '.join(brand_colors)}
+Color Usage: Use these brand colors strategically in the composition"""
+
+    else:
+        return f"""
+COLOR APPROACH:
+Use a professional color palette suitable for {business_context.get('industry', 'General')} industry
+Focus on colors that resonate with {business_context.get('target_audience', 'General audience')}"""
+
+
 # ==================== PYDANTIC MODELS ====================
 
 class CreateContentPayload(BaseModel):
@@ -244,6 +1027,8 @@ class CreateContentPayload(BaseModel):
     content_idea: Optional[str] = Field(None, min_length=10)
     content_id: Optional[str] = None
     agent_name: Optional[str] = None
+    post_design_type: Optional[str] = None
+    image_type: Optional[str] = None
 
 
 class EditContentPayload(BaseModel):
@@ -343,6 +1128,7 @@ class FollowUpLeadsPayload(BaseModel):
     lead_email: Optional[str] = None
     lead_phone: Optional[str] = None
     follow_up_message: Optional[str] = None
+    follow_up_date: Optional[str] = None  # ISO format date string for follow-up scheduling
 
 
 class ViewInsightsPayload(BaseModel):
@@ -380,7 +1166,6 @@ class AgentState(BaseModel):
     lead_items: Optional[List[Dict[str, Any]]] = None  # Structured lead data for frontend card rendering
     needs_connection: Optional[bool] = None  # Whether user needs to connect an account
     connection_platform: Optional[str] = None  # Platform that needs to be connected
-<<<<<<< HEAD
 
     # Temporary fields for PII privacy protection
     temp_original_email: Optional[str] = None  # Original email from user input (create operations)
@@ -398,8 +1183,7 @@ class AgentState(BaseModel):
     intent_change_detected: bool = False
     intent_change_type: Optional[str] = None  # 'refinement', 'complete_shift', 'none'
     previous_intent: Optional[str] = None
-    
->>>>>>> 05be2b7 (feat: Implement intelligent intent change detection in ATSN agent)
+
     class Config:
         arbitrary_types_allowed = True
 
@@ -427,18 +1211,11 @@ INTENT_MAP = {
 
 def classify_intent(state: AgentState) -> AgentState:
     """Classify user intent using Gemini"""
-
-    # Only preserve intent for clarification responses, not for new user messages
-    # Check if this is a clarification response vs a new intent
-    is_clarification_response = (
-        state.waiting_for_user and
-        state.clarification_question and
-        state.current_step == "waiting_for_clarification"
-    )
-
-    # If this is just a clarification response, preserve the original intent
-    if is_clarification_response:
-        print(f" Intent preserved: {state.intent} (clarification response)")
+    
+    # If intent is already set and we're continuing from a clarification, preserve it
+    # This prevents re-classification when user responds to clarification questions
+    if state.intent and state.current_step == "payload_construction":
+        print(f" Intent preserved: {state.intent} (continuing from clarification)")
         return state
     
     # Check for greetings first (simple pattern matching)
@@ -452,25 +1229,8 @@ def classify_intent(state: AgentState) -> AgentState:
         print(f" Intent classified: greeting")
         return state
     
-    # Detect intent changes by analyzing conversation context
-    intent_change_prompt = ""
-    if state.previous_intent:
-        intent_change_prompt = f"""
-
-INTENT CHANGE ANALYSIS:
-Previous intent: {state.previous_intent}
-Current conversation context: {state.user_query}
-
-Analyze if the user has changed their intent:
-- REFINEMENT: User is refining the same intent (e.g., "create post" → "generate post")
-- COMPLETE_SHIFT: User has switched to a different intent type (e.g., "create post" → "view posts")
-- NONE: No intent change, continuing with same intent
-
-Return intent change type: "refinement", "complete_shift", or "none"
-"""
-
     prompt = f"""You are an intent classifier for a content and lead management system.
-
+    
 Available intents:
 1. greeting - User is greeting (hi, hello, good morning, etc.)
 2. create_content - Creating new content (posts, videos, emails, messages)
@@ -488,29 +1248,15 @@ Available intents:
 14. view_analytics - Viewing analytics data
 15. general_talks - General conversation not related to the above tasks
 
-{intent_change_prompt}
-
 User query: {state.user_query}
 
-Return format: intent_name|change_type
-Where change_type is: "refinement", "complete_shift", or "none"
-
-Example: "create_content|refinement"
-Example: "view_content|complete_shift"
-Example: "greeting|none"
-
-Return ONLY the formatted response without any explanation."""
+Return ONLY the intent name (e.g., "create_content", "greeting", "general_talks", etc.) without any explanation.
+If the query doesn't match any specific task, return "general_talks"."""
 
     try:
         response = model.generate_content(prompt)
-
-        # Parse response format: "intent_name|change_type"
-        response_parts = response.text.strip().split('|')
-        intent = response_parts[0].strip().lower()
-
-        # Extract change type (default to "none" if not provided)
-        change_type = response_parts[1].strip().lower() if len(response_parts) > 1 else "none"
-
+        intent = response.text.strip().lower()
+        
         # Validate intent
         if intent not in INTENT_MAP:
             # Try to find closest match
@@ -521,25 +1267,8 @@ Return ONLY the formatted response without any explanation."""
             else:
                 # Default to general_talks for unmatched intents
                 intent = "general_talks"
-
-        # Set intent and change detection
+        
         state.intent = intent
-        state.intent_change_type = change_type
-
-        # Detect intent changes - check against both current and previous intent
-        if state.intent and state.intent != intent:
-            # Direct change from current intent
-            state.intent_change_detected = True
-            print(f"🎯 Intent change detected: {state.intent} → {intent} (type: {change_type})")
-        elif state.previous_intent and state.previous_intent != intent and not state.intent:
-            # Fallback check for cases where intent might not be set yet
-            state.intent_change_detected = True
-            print(f"🎯 Intent change detected (fallback): {state.previous_intent} → {intent} (type: {change_type})")
-        else:
-            state.intent_change_detected = False
-
-        # Update previous intent for next comparison
-        state.previous_intent = intent
         
         # For greeting, handle directly and end
         if intent == "greeting":
@@ -589,37 +1318,63 @@ Extract these fields if mentioned:
 - content_type: "Post", "short video", "long video", "Email", or "message"
 - media: "Generate", "Upload", or "without media"
 - content_idea: The main idea/topic for the content (minimum 10 words)
+- post_design_type: The style/type of post (News, Trendy, Educational, Informative, Announcement, BTS, UGC, etc.)
+- image_type: The type of image/visual (product photo, poster graphic, quote card, infographic, etc.)
+
+IMPORTANT: Do NOT set post_design_type to null - if not mentioned, omit it entirely so clarifying question is asked.
+For image_type, only include if explicitly mentioned in the context of image generation.
 
 Examples:
 
-Query: "Create an Instagram post about sustainable fashion trends for 2025"
+Query: "Create a trendy Instagram post about sustainable fashion trends for 2025"
 {{
     "channel": "Social Media",
     "platform": "Instagram",
     "content_type": "Post",
     "media": null,
-    "content_idea": "sustainable fashion trends for 2025 including eco-friendly materials and circular economy practices"
+    "content_idea": "sustainable fashion trends for 2025 including eco-friendly materials and circular economy practices",
+    "post_design_type": "Trendy"
 }}
 
-Query: "I need a LinkedIn video discussing AI impact on healthcare"
+Query: "I need an informative LinkedIn video discussing AI impact on healthcare"
 {{
     "channel": "Social Media",
     "platform": "LinkedIn",
     "content_type": "short video",
     "media": null,
-    "content_idea": "artificial intelligence impact on healthcare industry transformation including diagnostics and patient care"
+    "content_idea": "artificial intelligence impact on healthcare industry transformation including diagnostics and patient care",
+    "post_design_type": "Informative"
 }}
 
-Query: "Write a blog post with images about productivity hacks for remote workers"
+Query: "Write an educational blog post with infographics about productivity hacks for remote workers"
 {{
     "channel": "Blog",
     "platform": null,
     "content_type": "Post",
     "media": "Generate",
-    "content_idea": "productivity hacks for remote workers including time management techniques and workspace optimization strategies"
+    "content_idea": "productivity hacks for remote workers including time management techniques and workspace optimization strategies",
+    "post_design_type": "Educational",
+    "image_type": "Infographic"
 }}
 
-Extract ONLY explicitly mentioned information. Set fields to null if not mentioned.
+Query: "Create an educational Instagram post with a quote card about learning new skills"
+{{
+    "channel": "Social Media",
+    "platform": "Instagram",
+    "content_type": "Post",
+    "media": "Generate",
+    "content_idea": "importance of continuous learning and skill development in today's fast-paced world",
+    "post_design_type": "Educational",
+    "image_type": "Quote card"
+}}
+
+Extract ONLY explicitly mentioned information.
+
+IMPORTANT RULES:
+- Set basic fields (channel, platform, content_type, media, content_idea) to null if not mentioned
+- For post_design_type: ONLY include if explicitly mentioned as a post style/type, otherwise omit entirely
+- For image_type: ONLY include if explicitly mentioned in context of image generation, otherwise omit entirely
+
 {JSON_ONLY_INSTRUCTION}"""
 
     return _extract_payload(state, prompt)
@@ -671,11 +1426,28 @@ Extract ONLY explicitly mentioned information. Set fields to null if not mention
 
 def construct_delete_content_payload(state: AgentState) -> AgentState:
     """Construct payload for delete content task"""
-    
+
     # Use user_query which contains the full conversation context
     conversation = state.user_query
-    
+
+    # Get current date and user timezone for date parsing context
+    from datetime import datetime
+    current_date = datetime.now().strftime("%Y-%m-%d")
+
+    # Get user timezone from profile
+    user_timezone = "UTC"  # default
+    if state.user_id and supabase:
+        try:
+            profile_response = supabase.table("profiles").select("timezone").eq("id", state.user_id).execute()
+            if profile_response.data and len(profile_response.data) > 0:
+                user_timezone = profile_response.data[0].get("timezone", "UTC")
+        except Exception as e:
+            logger.warning(f"Could not fetch user timezone: {e}")
+
     prompt = f"""You are extracting information to delete content.
+
+Current date reference: Today is {current_date}
+User timezone: {user_timezone}
 
 User conversation:
 {conversation}
@@ -690,19 +1462,21 @@ Extract these fields ONLY if explicitly mentioned:
 
 CRITICAL DATE PARSING RULES:
 - Parse ALL date mentions into YYYY-MM-DD format without errors
-- "today" → current date in YYYY-MM-DD format
-- "yesterday" → yesterday's date in YYYY-MM-DD format
-- "tomorrow" → tomorrow's date in YYYY-MM-DD format
-- "this week" → current week range (Monday to current day)
-- "last week" → previous week range (Monday to Sunday)
-- "this month" → current month range (1st to current day)
-- "last month" → previous month range (1st to last day)
-- "last_7_days" → date range for last 7 days
-- "last_30_days" → date range for last 30 days
-- Specific dates like "27 december" → "YYYY-12-27" (use current year)
+- "today" → current date ({current_date}) in YYYY-MM-DD format
+- "yesterday" → yesterday's date relative to {current_date}
+- "tomorrow" → tomorrow's date relative to {current_date}
+- "this week" → current week range (Monday to current day) relative to {current_date}
+- "last week" → previous week range (Monday to Sunday) relative to {current_date}
+- "this month" → current month range (1st to current day) relative to {current_date}
+- "last month" → previous month range (1st to last day) relative to {current_date}
+- "last_7_days" → date range for last 7 days from {current_date}
+- "last_30_days" → date range for last 30 days from {current_date}
+- Specific dates like "27 december" → "YYYY-12-27" (use current year if not specified)
+- Month names: "january"/"jan" → "01", "february"/"feb" → "02", etc.
 - For date ranges, use format "YYYY-MM-DD to YYYY-MM-DD"
 - If no date mentioned, set date_range to null
 - NEVER leave date parsing incomplete - always convert to proper format
+- Use the user's timezone ({user_timezone}) for all date calculations
 
 CRITICAL QUERY EXTRACTION:
 - Extract search queries that indicate what content the user is looking for
@@ -719,16 +1493,27 @@ CRITICAL RULES:
 6. Only set status to "scheduled" if user explicitly says "scheduled", "scheduled posts", etc.
 7. Only set status to "generated" if user explicitly says "generated", "draft", "created", etc.
 8. IMPORTANT: When user responds to clarification questions with single words, parse dates correctly:
-   - "yesterday" → date_range: yesterday's date
-   - "today" → date_range: today's date
-   - "tomorrow" → date_range: tomorrow's date
+   - "yesterday" → date_range: yesterday's date ({(datetime.now() - timedelta(days=1)).strftime('%Y-%m-%d')})
+   - "today" → date_range: today's date ({current_date})
+   - "tomorrow" → date_range: tomorrow's date ({(datetime.now() + timedelta(days=1)).strftime('%Y-%m-%d')})
    - "this week" → date_range: current week range
    - "last week" → date_range: previous week range
    - "this month" → date_range: current month range
    - "last month" → date_range: previous month range
+   - "last_7_days" → date_range: last 7 days from {current_date}
+   - "last_30_days" → date_range: last 30 days from {current_date}
    - "generated" → status: "generated"
+   - "scheduled" → status: "scheduled"
+   - "published" → status: "published"
    - "Instagram" → platform: "Instagram"
+   - "Facebook" → platform: "Facebook"
+   - "LinkedIn" → platform: "LinkedIn"
+   - "YouTube" → platform: "Youtube"
+   - "Gmail" → platform: "Gmail"
+   - "WhatsApp" → platform: "Whatsapp"
    - "Social Media" → channel: "Social Media"
+   - "Blog" → channel: "Blog"
+   - "Email" → channel: "Email"
 9. Preserve existing payload values - only update fields that are explicitly mentioned in the current response
 
 
@@ -1005,7 +1790,24 @@ def construct_create_leads_payload(state: AgentState) -> AgentState:
     state.temp_original_email = original_emails[0] if original_emails else None
     state.temp_original_phone = original_phones[0] if original_phones else None
 
+    # Get current date and user timezone for date parsing context
+    from datetime import datetime
+    current_date = datetime.now().strftime("%Y-%m-%d")
+
+    # Get user timezone from profile
+    user_timezone = "UTC"  # default
+    if state.user_id and supabase:
+        try:
+            profile_response = supabase.table("profiles").select("timezone").eq("id", state.user_id).execute()
+            if profile_response.data and len(profile_response.data) > 0:
+                user_timezone = profile_response.data[0].get("timezone", "UTC")
+        except Exception as e:
+            logger.warning(f"Could not fetch user timezone: {e}")
+
     prompt = f"""You are extracting information to create a new lead in the system.
+
+Current date reference: Today is {current_date}
+User timezone: {user_timezone}
 
 User conversation:
 {sanitized_conversation}
@@ -1016,8 +1818,25 @@ Extract these fields if mentioned:
 - lead_phone: Phone number
 - lead_source: Where the lead came from (website, referral, event, social media, etc.)
 - lead_status: "New", "Contacted", "Qualified", "Lost", or "Won"
-- follow_up: When to follow up (dates, times, or relative periods)
+- follow_up: PARSE dates into YYYY-MM-DD format or ISO format (YYYY-MM-DDTHH:MM:SS)
 - remarks: Additional notes
+
+CRITICAL DATE PARSING RULES FOR follow_up:
+- Parse ALL date mentions into YYYY-MM-DD format
+- "today" → current date ({current_date}) in YYYY-MM-DD format
+- "yesterday" → DO NOT USE PAST DATES, convert to tomorrow
+- "tomorrow" → tomorrow's date in YYYY-MM-DD format
+- "next week" → date 7 days from {current_date}
+- Weekday names ("monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday") → calculate the NEXT occurrence of that weekday from {current_date}
+  * If today is Tuesday (Dec 31, 2025) and user says "Sunday", return 2026-01-04 (next Sunday)
+  * If today is Tuesday and user says "Friday", return 2026-01-03 (this Friday)
+  * If today is Tuesday and user says "Tuesday", return 2026-01-07 (next Tuesday, not today)
+  * ALWAYS find the NEXT upcoming occurrence, never use today or past dates
+- "next monday", "next tuesday", etc → same as above, calculate next occurrence of that weekday
+- Specific dates like "Jan 15" → "YYYY-01-15" (use current/next year appropriately)
+- NEVER use past dates - always convert to future dates
+- If no date mentioned, set follow_up to null
+- Use {current_date} as the reference point for all calculations
 
 Examples:
 
@@ -1028,17 +1847,18 @@ Query: "Add a new lead John Doe from the website, email atsn@gmail.com, follow u
     "lead_phone": null,
     "lead_source": "website",
     "lead_status": null,
-    "follow_up": "tomorrow",
+    "follow_up": "{(datetime.now() + timedelta(days=1)).strftime('%Y-%m-%d')}",
     "remarks": null
 }}
 
-Query: "Create lead Sarah Johnson, phone 9876543210, came from LinkedIn, status is qualified"
+Query: "Create lead Sarah Johnson, phone 9876543210, came from LinkedIn, status is qualified, follow up next Monday"
 {{
     "lead_name": "Sarah Johnson",
     "lead_email": null,
     "lead_phone": "9876543210",
     "lead_source": "LinkedIn",
     "lead_status": "Qualified",
+    "follow_up": "2025-01-06",
     "remarks": null
 }}
 
@@ -1049,6 +1869,7 @@ Query: "New lead: Mike Chen, atsn@gmail.com, referred by existing client, very i
     "lead_phone": null,
     "lead_source": "referral",
     "lead_status": null,
+    "follow_up": null,
     "remarks": "very interested in our services, referred by existing client"
 }}
 
@@ -1304,7 +2125,13 @@ def construct_follow_up_leads_payload(state: AgentState) -> AgentState:
     state.temp_followup_emails = original_emails
     state.temp_followup_phones = original_phones
 
+    # Get current date for date parsing context
+    from datetime import datetime
+    current_date = datetime.now().strftime("%Y-%m-%d")
+
     prompt = f"""You are extracting information to follow up with a lead.
+
+Current date reference: Today is {current_date}
 
 User conversation:
 {sanitized_conversation}
@@ -1314,23 +2141,41 @@ Extract these fields if mentioned:
 - lead_email: Email of lead to follow up
 - lead_phone: Phone of lead to follow up
 - follow_up_message: Specific message to send (optional)
+- follow_up_date: PARSE dates into YYYY-MM-DD format
+
+DATE PARSING RULES FOR follow_up_date:
+- "today" → current date ({current_date}) in YYYY-MM-DD format
+- "tomorrow" → tomorrow's date in YYYY-MM-DD format
+- "next week" → date 7 days from {current_date}
+- Weekday names ("monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday") → calculate the NEXT occurrence of that weekday from {current_date}
+  * If today is Tuesday (Dec 31, 2025) and user says "Sunday", return 2026-01-04 (next Sunday)
+  * If today is Tuesday and user says "Friday", return 2026-01-03 (this Friday)
+  * If today is Tuesday and user says "Tuesday", return 2026-01-07 (next Tuesday, not today)
+  * ALWAYS find the NEXT upcoming occurrence, never use today or past dates
+- "next monday", "next tuesday", etc → same as above, calculate next occurrence of that weekday
+- Specific dates like "Jan 15" → "YYYY-01-15" (use current/next year appropriately)
+- NEVER use past dates - always convert to future dates
+- If no date mentioned, set to null
+- Use {current_date} as the reference point for all calculations
 
 Examples:
 
-Query: "Follow up with John Doe about the proposal"
+Query: "Follow up with John Doe about the proposal next Monday"
 {{
     "lead_name": "John Doe",
     "lead_email": null,
     "lead_phone": null,
-    "follow_up_message": "following up about the proposal"
+    "follow_up_message": "following up about the proposal",
+    "follow_up_date": "2025-01-06"
 }}
 
-Query: "Send follow-up email to atsn@gmail.com asking about the meeting"
+Query: "Send follow-up email to atsn@gmail.com asking about the meeting tomorrow"
 {{
     "lead_name": null,
     "lead_email": "sarah@company.com",
     "lead_phone": null,
-    "follow_up_message": "asking about the meeting"
+    "follow_up_message": "asking about the meeting",
+    "follow_up_date": "{(datetime.now() + timedelta(days=1)).strftime('%Y-%m-%d')}"
 }}
 
 Query: "Call lead Mike Chen to check if he's ready to proceed"
@@ -1338,7 +2183,8 @@ Query: "Call lead Mike Chen to check if he's ready to proceed"
     "lead_name": "Mike Chen",
     "lead_email": null,
     "lead_phone": null,
-    "follow_up_message": "check if ready to proceed with next steps"
+    "follow_up_message": "check if ready to proceed with next steps",
+    "follow_up_date": null
 }}
 
 Extract ONLY explicitly mentioned information. Set fields to null if not mentioned.
@@ -1525,10 +2371,16 @@ def _extract_payload(state: AgentState, prompt: str) -> AgentState:
             if state.payload:
                 # Only update fields that are not null in the extracted payload
                 for key, value in extracted_payload.items():
-                    if value is not None:
+                    # For required clarifying question fields, treat null as "not present"
+                    if key in ['post_design_type', 'image_type'] and value is None:
+                        continue  # Skip null values for clarifying question fields
+                    elif value is not None:
                         state.payload[key] = value
             else:
-                state.payload = extracted_payload
+                # Filter out null values for clarifying question fields
+                filtered_payload = {k: v for k, v in extracted_payload.items()
+                                  if not (k in ['post_design_type', 'image_type'] and v is None)}
+                state.payload = filtered_payload
             
             state.current_step = "payload_completion"
             print(f" Payload constructed: {state.payload}")
@@ -1599,6 +2451,14 @@ FIELD_CLARIFICATIONS = {
         },
         "content_idea": {
             "question": "Love it! Tell me more about what you have in mind. What's the main idea or topic you want to cover? (Aim for at least 10 words to give me a good sense of what you're looking for)",
+            "options": []
+        },
+        "post_design_type": {
+            "question": "What kind of post design are you looking for? (News, Trendy, Educational, Informative, Announcement, BTS, UGC, etc.)",
+            "options": []
+        },
+        "image_type": {
+            "question": "What type of image would you like? (e.g., product photo, poster graphic, quote card, infographic, etc.)",
             "options": []
         },
     },
@@ -1832,6 +2692,16 @@ FIELD_CLARIFICATIONS = {
                 {"label": "Negotiation", "value": "negotiation", "description": "Discussing terms"},
                 {"label": "Closed Won", "value": "closed_won", "description": "They chose us!"},
                 {"label": "Closed Lost", "value": "closed_lost", "description": "Didn't work out"}
+            ]
+        },
+        "follow_up": {
+            "question": "When should we follow up with this lead? Choose from common options or pick a custom date.",
+            "options": [
+                {"label": "Today", "value": "today"},
+                {"label": "Tomorrow", "value": "tomorrow"},
+                {"label": "Next week", "value": "next week"},
+                {"label": "Next month", "value": "next month"},
+                {"label": "Custom date", "value": "show_date_picker"}
             ]
         },
         "remarks": {
@@ -2191,8 +3061,12 @@ def complete_view_content_payload(state: AgentState) -> AgentState:
 
 def complete_create_content_payload(state: AgentState) -> AgentState:
     """Complete create_content payload"""
-    required_fields = ["channel", "platform", "content_type", "media", "content_idea"]
+    required_fields = ["channel", "platform", "content_type", "media", "content_idea", "post_design_type"]
     clarifications = FIELD_CLARIFICATIONS.get("create_content", {})
+
+    # Add image_type as required if media is "Generate"
+    if state.payload.get("media") == "Generate":
+        required_fields.append("image_type")
 
     missing_fields = [
         f for f in required_fields
@@ -2753,8 +3627,19 @@ def complete_create_leads_payload(state: AgentState) -> AgentState:
             state.clarification_question = clarification_data or "What's their current status?"
             state.clarification_options = []
     elif not has_follow_up:
-        state.clarification_question = "When should we follow up with this lead? (e.g., 'tomorrow', 'next week', '2025-01-15')"
-        state.clarification_options = []
+        clarification_data = clarifications.get("follow_up", {})
+        if isinstance(clarification_data, dict):
+            base_question = clarification_data.get("question", "When should we follow up with this lead?")
+            personalized_question = generate_clarifying_question(
+                base_question=base_question,
+                user_context=state.user_query,
+                user_input=state.user_query.split('\n')[-1] if state.user_query else ""
+            )
+            state.clarification_question = personalized_question
+            state.clarification_options = clarification_data.get("options", [])
+        else:
+            state.clarification_question = clarification_data or "When should we follow up with this lead?"
+            state.clarification_options = []
     elif not has_remarks:
         clarification_data = clarifications.get("remarks", {})
         if isinstance(clarification_data, dict):
@@ -2928,7 +3813,7 @@ def complete_delete_leads_payload(state: AgentState) -> AgentState:
 
 def complete_follow_up_leads_payload(state: AgentState) -> AgentState:
     """Complete follow_up_leads payload"""
-    required_fields = ["lead_name"]
+    required_fields = ["lead_name", "follow_up_date"]
     clarifications = FIELD_CLARIFICATIONS.get("follow_up_leads", {})
     
     missing_fields = [
@@ -2939,30 +3824,30 @@ def complete_follow_up_leads_payload(state: AgentState) -> AgentState:
     if not missing_fields:
         state.payload_complete = True
         state.current_step = "action_execution"
-        print(" Follow up leads payload complete")
+        print("✓ Follow up leads payload complete")
         return state
     
     next_field = missing_fields[0]
-    clarification_data = clarifications.get(next_field, {})
-
-    if isinstance(clarification_data, dict):
-        base_question = clarification_data.get("question", f"Please provide: {next_field.replace('_', ' ')}")
-
-        # Generate personalized question using LLM
-        logger.info(f"Calling LLM for clarification question. Base: '{base_question}', User context length: {len(state.user_query or '')}")
-        personalized_question = generate_clarifying_question(
-            base_question=base_question,
-            user_context=state.user_query,
-            user_input=state.user_query.split('\n')[-1] if state.user_query else ""
-        )
-        logger.info(f"LLM returned: '{personalized_question}'")
-
-        state.clarification_question = personalized_question
-        state.clarification_options = clarification_data.get("options", [])
-    else:
-        # Backward compatibility for string clarifications
-        state.clarification_question = clarification_data or f"Please provide: {next_field.replace('_', ' ')}"
+    
+    # Special handling for follow_up_date
+    if next_field == "follow_up_date":
+        state.clarification_question = "When should we follow up with this lead? (e.g., 'tomorrow', 'next week', 'Jan 15')"
         state.clarification_options = []
+    else:
+        clarification_data = clarifications.get(next_field, {})
+
+        if isinstance(clarification_data, dict):
+            base_question = clarification_data.get("question", f"Please provide: {next_field.replace('_', ' ')}")
+            personalized_question = generate_clarifying_question(
+                base_question=base_question,
+                user_context=state.user_query,
+                user_input=state.user_query.split('\n')[-1] if state.user_query else ""
+            )
+            state.clarification_question = personalized_question
+            state.clarification_options = clarification_data.get("options", [])
+        else:
+            state.clarification_question = clarification_data or f"Please provide: {next_field.replace('_', ' ')}"
+            state.clarification_options = []
 
     state.waiting_for_user = True
     state.current_step = "waiting_for_clarification"
@@ -3153,7 +4038,7 @@ What can I help you with today?"""
 
 # ==================== ACTION EXECUTION ====================
 
-def execute_action(state: AgentState) -> AgentState:
+async def execute_action(state: AgentState) -> AgentState:
     """Execute the action based on intent and complete payload"""
     
     intent = state.intent
@@ -3168,7 +4053,7 @@ def execute_action(state: AgentState) -> AgentState:
     elif intent == "general_talks":
         state = handle_general_talks(state)
     elif intent == "create_content":
-        state = handle_create_content(state)
+        state = await handle_create_content(state)
     elif intent == "edit_content":
         state = handle_edit_content(state)
     elif intent == "delete_content":
@@ -3216,7 +4101,7 @@ def execute_action(state: AgentState) -> AgentState:
 
 # ==================== CONTENT HANDLERS ====================
 
-def handle_create_content(state: AgentState) -> AgentState:
+async def handle_create_content(state: AgentState) -> AgentState:
     """Generate and create content"""
     payload = state.payload
     
@@ -3232,40 +4117,100 @@ def handle_create_content(state: AgentState) -> AgentState:
         generated_image_url = None
         content_data = {}  # Store data to save to database
 
-        # Load business context from profiles table
-        business_context = _load_business_context(state.user_id) if state.user_id else _get_default_business_context()
+        # Load business context and profile assets from profiles table
+        business_context = {}
+        profile_assets = {}
+        if state.user_id:
+            logger.info(f"🔍 Loading profile data for user_id: {state.user_id}")
+            try:
+                # Fetch comprehensive profile data including all context fields
+                profile_fields = [
+                    "business_name", "business_description", "brand_tone", "industry", "target_audience",
+                    "brand_voice", "unique_value_proposition", "primary_color", "secondary_color",
+                    "brand_colors", "logo_url", "timezone", "location_city", "location_state", "location_country"
+                ]
+                logger.info(f"🔍 Fetching profile fields: {', '.join(profile_fields)}")
+                profile_response = supabase.table("profiles").select(", ".join(profile_fields)).eq("id", state.user_id).execute()
+
+                logger.info(f"🔍 Profile query response: {len(profile_response.data) if profile_response.data else 0} records found")
+
+                if profile_response.data and len(profile_response.data) > 0:
+                    profile_data = profile_response.data[0]
+                    logger.info(f"🔍 Raw profile data: {profile_data}")
+
+                    business_context = get_business_context_from_profile(profile_data)
+
+                    # Extract brand assets for content and image generation
+                    profile_assets = {
+                        'primary_color': profile_data.get('primary_color'),
+                        'secondary_color': profile_data.get('secondary_color'),
+                        'brand_colors': profile_data.get('brand_colors') or [],  # Ensure it's always a list
+                        'logo': profile_data.get('logo_url')  # Use correct column name
+                    }
+
+                    logger.info(f"✅ Loaded structured business context for: {business_context.get('business_name', 'Business')}")
+                    logger.info(f"   Brand colors: {bool(profile_assets['primary_color'])}/{bool(profile_assets['secondary_color'])}")
+                    brand_colors_len = len(profile_assets.get('brand_colors') or [])
+                    logger.info(f"   Brand colors array: {brand_colors_len} colors")
+                    logger.info(f"   Logo: {bool(profile_assets.get('logo'))}")
+                    logger.info(f"   Industry: {business_context.get('industry', 'N/A')}")
+                    logger.info(f"   Target audience: {business_context.get('target_audience', 'N/A')}")
+                else:
+                    logger.warning(f"❌ No profile data found for user_id: {state.user_id}, using defaults")
+                    logger.warning("   This usually means the user hasn't completed their profile onboarding")
+                    business_context = get_business_context_from_profile({})
+                    profile_assets = {'primary_color': None, 'secondary_color': None, 'brand_colors': [], 'logo': None}
+            except Exception as e:
+                logger.error(f"❌ Failed to load business context for user_id {state.user_id}: {e}")
+                logger.error(f"   Exception type: {type(e).__name__}")
+                import traceback
+                logger.error(f"   Traceback: {traceback.format_exc()}")
+                business_context = get_business_context_from_profile({})
+                profile_assets = {'primary_color': None, 'secondary_color': None, 'brand_colors': [], 'logo': None}
+        else:
+            logger.warning("❌ No user_id provided in state, using defaults")
+            business_context = get_business_context_from_profile({})
+            profile_assets = {'primary_color': None, 'secondary_color': None, 'brand_colors': [], 'logo': None}
 
         # Handle different content types
         content_type = payload.get('content_type', '')
 
         if content_type == 'Post':
-            # Build the prompt for GPT-4o-mini to generate structured post data
-            prompt = f"""You are a professional social media content creator specializing in {payload.get('platform', 'social media')} posts for businesses.
+            # Step 1: Get trends from Grok API for trend-aware content
+            topic = payload.get('content_idea', '')
+            trends_data = await get_trends_from_grok(topic, business_context)
+            parsed_trends = parse_trends_for_content(trends_data)
 
-BUSINESS CONTEXT:
-{business_context.get('business_name', 'Business')}
-Industry: {business_context.get('industry', 'General')}
-Target Audience: {business_context.get('target_audience', 'General audience')}
-Brand Voice: {business_context.get('brand_voice', 'Professional and friendly')}
-Brand Tone: {business_context.get('brand_tone', 'Approachable')}
+            # Step 2: Classify post design type and image type for better content generation
+            post_design_type = payload.get('post_design_type')
+            if post_design_type:
+                classified_post_design = classify_post_design_type(post_design_type)
+                logger.info(f"🎨 Classified post design type: '{post_design_type}' → '{classified_post_design}'")
+            else:
+                classified_post_design = "general"
 
-CONTENT REQUIREMENTS:
-- Platform: {payload.get('platform', 'Social Media')}
-- Channel: {payload.get('channel', 'Social Media')}
-- Content Idea: {payload.get('content_idea', '')}
+            image_type = payload.get('image_type')
+            if image_type:
+                classified_image_type = classify_image_type(image_type)
+                logger.info(f"🖼️ Image type input: '{image_type}' → Classified as: '{classified_image_type}'")
+            else:
+                classified_image_type = "general"
+                logger.info(f"🖼️ No image type specified, using default: '{classified_image_type}'")
 
-TASK:
-Create a complete social media post with the following structure:
+            # Step 3: Get platform-specific prompt
+            platform = payload.get('platform', 'Instagram')
+            prompt = get_platform_specific_prompt(platform, payload, business_context, parsed_trends, profile_assets)
 
-TITLE: [Create an engaging title for the post (max 60 characters)]
-
-CONTENT: [Write the full post content with emojis and engaging copy]
-
-HASHTAGS: [Provide 5-8 relevant hashtags separated by spaces]
-
-Return ONLY in this exact format, no other text or explanations."""
+            # Log the complete prompt being sent to LLM
+            logger.info(f"📝 Complete prompt being sent to GPT-4o-mini for {platform}:")
+            logger.info("=" * 80)
+            logger.info(prompt)
+            logger.info("=" * 80)
 
             # Generate structured content with GPT-4o-mini
+            from datetime import datetime
+            content_gen_datetime = datetime.now()
+            logger.info(f"📝 Generating content with GPT-4o-mini for platform: {platform} at {content_gen_datetime.strftime('%Y-%m-%d %H:%M:%S UTC')}")
             if openai_client:
                 response = openai_client.chat.completions.create(
                     model="gpt-4o-mini",
@@ -3275,36 +4220,44 @@ Return ONLY in this exact format, no other text or explanations."""
                 )
                 generated_response = response.choices[0].message.content.strip()
 
-                # Parse the structured response
-                title = ""
-                content = ""
-                hashtags = ""
+                # Parse platform-specific response
+                if platform.lower() == 'instagram':
+                    parsed_content = parse_instagram_response(generated_response)
+                    title = parsed_content['title']
+                    content = parsed_content['content']
+                    hashtags = parsed_content['hashtags']
+                else:
+                    # Fallback parsing for other platforms
+                    title = ""
+                    content = ""
+                    hashtags = []
 
-                lines = generated_response.split('\n')
-                current_section = None
+                    lines = generated_response.split('\n')
+                    current_section = None
 
-                for line in lines:
-                    line = line.strip()
-                    if line.startswith('TITLE:'):
-                        title = line.replace('TITLE:', '').strip()
-                        current_section = 'title'
-                    elif line.startswith('CONTENT:'):
-                        content = line.replace('CONTENT:', '').strip()
-                        current_section = 'content'
-                    elif line.startswith('HASHTAGS:'):
-                        hashtags = line.replace('HASHTAGS:', '').strip()
-                        current_section = 'hashtags'
-                    elif current_section == 'content' and line:
-                        content += ' ' + line
-                    elif current_section == 'hashtags' and line:
-                        hashtags += ' ' + line
+                    for line in lines:
+                        line = line.strip()
+                        if line.startswith('TITLE:'):
+                            title = line.replace('TITLE:', '').strip()
+                            current_section = 'title'
+                        elif line.startswith('CONTENT:'):
+                            content = line.replace('CONTENT:', '').strip()
+                            current_section = 'content'
+                        elif line.startswith('HASHTAGS:'):
+                            hashtags_text = line.replace('HASHTAGS:', '').strip()
+                            hashtags = hashtags_text.split() if hashtags_text else []
+                            current_section = 'hashtags'
+                        elif current_section == 'content' and line:
+                            content += ' ' + line
+                        elif current_section == 'hashtags' and line:
+                            hashtags.extend(line.split())
 
                 # Save structured data
                 content_data['title'] = title
                 content_data['content'] = content
-                content_data['hashtags'] = hashtags.split() if hashtags else []
+                content_data['hashtags'] = hashtags
 
-                generated_content = f"{title}\n\n{content}\n\n{' '.join(content_data['hashtags'])}"
+                generated_content = f"{title}\n\n{content}\n\n{' '.join(hashtags)}"
             else:
                 generated_content = "OpenAI client not configured"
                 content_data['title'] = "Content Generation Failed"
@@ -3505,34 +4458,58 @@ Keep message under 160 characters for SMS, or conversational for WhatsApp."""
         if payload.get('media') == 'Generate':
             # Generate image using Gemini with the generated content and business context
             try:
-                # Get brand colors from profile
-                brand_colors = ""
-                if state.user_id:
-                    profile_response = supabase.table("profiles").select("brand_colors").eq("id", state.user_id).execute()
-                    if profile_response.data and len(profile_response.data) > 0:
-                        brand_colors = profile_response.data[0].get('brand_colors', '')
+                # First, generate enhanced image prompt using AI
+                generated_post = {
+                    'title': title,
+                    'content': content
+                }
 
-                # Build image generation prompt
-                image_prompt = f"""Create a professional social media image for {payload.get('platform', 'social media')}:
+                enhanced_prompt_data = await generate_image_enhancer_prompt(
+                    generated_post, payload, business_context, parsed_trends, profile_assets, classified_image_type
+                )
 
-CONTENT: {generated_content[:200]}...
+                # Build final image generation prompt using the enhanced prompt
+                from datetime import datetime
+                current_datetime = datetime.now()
+                current_date = current_datetime.strftime("%Y-%m-%d")
+                current_time = current_datetime.strftime("%H:%M:%S UTC")
 
-BUSINESS CONTEXT:
+                # Use the enhanced prompt as the base
+                base_prompt = enhanced_prompt_data.get('image_prompt', f"Create a professional image for: {title}")
+                # Determine visual style from classified image type instead of LLM
+                visual_style = get_visual_style_from_image_type(classified_image_type)
+                aspect_ratio = enhanced_prompt_data.get('aspect_ratio', '1:1')
+                negative_prompt = enhanced_prompt_data.get('negative_prompt', 'text, logos, watermarks')
+
+                # Build color instructions and location context using helper functions
+                color_instructions = build_brand_color_instructions(profile_assets, business_context)
+                location_context = build_location_context(business_context)
+
+                image_prompt = f"""{base_prompt}
+
+VISUAL REQUIREMENTS:
+- Style: {visual_style}
+- Aspect Ratio: {aspect_ratio}
 - Business: {business_context.get('business_name', 'Business')}
 - Industry: {business_context.get('industry', 'General')}
-- Brand Colors: {brand_colors or 'Professional blue and white'}
 - Target Audience: {business_context.get('target_audience', 'General audience')}
+{color_instructions}
 
-INSTRUCTIONS: {payload.get('content_idea', 'Create an engaging visual that matches the content')}
+{location_context}
 
-Create a high-quality, professional image that:
-- Uses the specified brand colors
-- Is optimized for {payload.get('platform', 'social media')} format
-- Visually represents the content
-- Is engaging and professional"""
+AVOID: {negative_prompt}
+
+Create a high-quality, professional image optimized for Instagram that reflects current design trends for {current_date}."""
+
+                # Log the complete image generation prompt
+                logger.info(f"🎨 Complete image generation prompt being sent to Gemini:")
+                logger.info("=" * 80)
+                logger.info(image_prompt)
+                logger.info("=" * 80)
 
                 # Generate image with Gemini
-                logger.info(f"Generating image with Gemini for platform: {payload.get('platform')}")
+                logger.info(f"🎨 Generating image with Gemini for platform: {payload.get('platform')} at {current_datetime.strftime('%Y-%m-%d %H:%M:%S UTC')}")
+                logger.info(f"   Image type '{classified_image_type}' → Visual style: {visual_style}, Aspect ratio: {aspect_ratio}")
                 gemini_image_model = 'gemini-2.5-flash-image-preview'
                 image_response = genai.GenerativeModel(gemini_image_model).generate_content(
                     contents=[image_prompt]
@@ -5039,15 +6016,8 @@ def handle_create_leads(state: AgentState) -> AgentState:
                 # Set success intent for frontend
                 state.intent = "lead_created"
 
-                base_message = f"""Added a new lead
-
-Name: {payload.get('lead_name')}
-Email: {payload.get('lead_email', 'N/A')}
-Phone: {payload.get('lead_phone', 'N/A')}
-Source: {payload.get('lead_source')}
-Status: {payload.get('lead_status')}
-Follow up: {payload.get('follow_up', 'N/A')}
-Remarks: {payload.get('remarks', 'N/A')}"""
+                # Simple success message - lead card will be displayed separately
+                base_message = "Added a new lead successfully!"
 
                 state.result = generate_personalized_message(
                     base_message=base_message,
@@ -5284,11 +6254,15 @@ Make it friendly, brief, and action-oriented."""
     # Get original contact info for display
     display_email = getattr(state, 'temp_followup_emails', [None])[0] or payload.get('lead_email')
     display_phone = getattr(state, 'temp_followup_phones', [None])[0] or payload.get('lead_phone')
+    
+    # Format the follow-up date for display
+    follow_up_date = payload.get('follow_up_date')
+    formatted_date = f"\n📅 Scheduled: {follow_up_date}" if follow_up_date else ""
 
     state.result = f"""📧 Follow-up prepared
 
 Lead: {payload.get('lead_name')}
-Contact: {display_email or display_phone}
+Contact: {display_email or display_phone}{formatted_date}
 
 Message:
 {follow_up_message}
@@ -5386,52 +6360,6 @@ def should_continue_to_action(state: AgentState) -> str:
     return "end"
 
 
-def route_based_on_intent_change(state: AgentState) -> str:
-    """Route based on intent change detection"""
-    if state.intent_change_detected:
-        if state.intent_change_type == "complete_shift":
-            print(f"🔄 Complete intent shift detected - restarting entire flow")
-
-            # Aggressive reset for complete intent changes
-            state = reset_state_for_new_intent(state)
-
-            # Return to start for complete restart
-            return "classify_intent"
-        elif state.intent_change_type == "refinement":
-            print(f"🔧 Intent refinement detected - continuing with context")
-            state.intent_change_detected = False
-            # Continue with normal routing for refinements
-            return route_to_constructor(state)
-        else:
-            # Unknown change type, treat as refinement
-            print(f"🔧 Intent change detected (unknown type) - continuing")
-            state.intent_change_detected = False
-            return route_to_constructor(state)
-    else:
-        # No change - normal routing
-        return route_to_constructor(state)
-
-
-def reset_state_for_new_intent(state: AgentState) -> AgentState:
-    """Reset state completely for new intent processing"""
-    print("🧹 Resetting state for new intent")
-
-    # Keep only essential fields, reset everything else
-    preserved_user_id = state.user_id
-    preserved_previous_intent = state.intent  # Keep for logging
-
-    # Create fresh state
-    fresh_state = AgentState(
-        user_query=state.user_query,  # Keep the full conversation context
-        user_id=preserved_user_id,
-        intent_change_detected=False,
-        previous_intent=preserved_previous_intent
-    )
-
-    print(f"✅ State reset complete. Ready for new intent processing.")
-    return fresh_state
-
-
 def build_graph():
     """Build the LangGraph workflow"""
     
@@ -5462,12 +6390,11 @@ def build_graph():
     # Add edges
     workflow.set_entry_point("classify_intent")
     
-    # Route from intent classifier with intent change detection
+    # Route from intent classifier to specific constructor or direct to action
     workflow.add_conditional_edges(
         "classify_intent",
-        route_based_on_intent_change,
+        route_to_constructor,
         {
-            "classify_intent": "classify_intent",  # For complete intent shifts - restart
             "execute_action": "execute_action",  # For greeting and general_talks
             "construct_create_content": "construct_create_content",
             "construct_edit_content": "construct_edit_content",
@@ -5518,60 +6445,6 @@ def build_graph():
     return workflow.compile()
 
 
-# ==================== HELPER FUNCTIONS ====================
-
-def _get_default_business_context() -> Dict[str, Any]:
-    """Get default business context when profile is not available"""
-    return {
-        "business_name": "AI Marketing Company",
-        "industry": ["Technology", "Marketing"],
-        "target_audience": ["Businesses", "Entrepreneurs"],
-        "brand_voice": "Professional and innovative",
-        "content_goals": ["Lead generation", "Brand awareness"],
-        "brand_personality": "Helpful and knowledgeable",
-        "brand_values": ["Innovation", "Quality", "Customer success"]
-    }
-
-
-def _load_business_context(user_id: str) -> Dict[str, Any]:
-    """Load business context from user profile"""
-    try:
-        if not supabase:
-            logger.info(f"Supabase not available for user {user_id}, using default business context")
-            return _get_default_business_context()
-
-        # Get user profile from Supabase including embeddings
-        response = supabase.table("profiles").select("*, profile_embedding").eq("id", user_id).execute()
-
-        if response.data and len(response.data) > 0:
-            profile_data = response.data[0]
-            # Use embedding context utility if available
-            try:
-                from utils.embedding_context import get_profile_context_with_embedding
-                business_context = get_profile_context_with_embedding(profile_data)
-                logger.info(f"User {user_id} - Business context extracted using embedding: {business_context}")
-                return business_context
-            except ImportError:
-                # Fallback to basic extraction
-                business_context = {
-                    "business_name": profile_data.get("business_name", ""),
-                    "industry": profile_data.get("industry", ""),
-                    "target_audience": profile_data.get("target_audience", ""),
-                    "brand_voice": profile_data.get("brand_voice", ""),
-                    "content_goals": profile_data.get("content_goals", []),
-                    "brand_personality": profile_data.get("brand_personality", ""),
-                    "brand_values": profile_data.get("brand_values", [])
-                }
-                logger.info(f"User {user_id} - Business context extracted using basic fallback: {business_context}")
-                return business_context
-        else:
-            logger.warning(f"No profile found for user {user_id}")
-            return _get_default_business_context()
-    except Exception as e:
-        logger.error(f"Error loading business context for user {user_id}: {e}")
-        return _get_default_business_context()
-
-
 # ==================== MAIN AGENT CLASS ====================
 
 class ATSNAgent:
@@ -5582,7 +6455,7 @@ class ATSNAgent:
         self.state = None
         self.user_id = user_id
     
-    def process_query(self, user_query: str, conversation_history: List[str] = None, user_id: Optional[str] = None, media_file: Optional[str] = None) -> Dict[str, Any]:
+    async def process_query(self, user_query: str, conversation_history: List[str] = None, user_id: Optional[str] = None, media_file: Optional[str] = None) -> Dict[str, Any]:
         """Process a user query
         
         Maintains conversation context by appending new messages to user_query.
@@ -5642,7 +6515,7 @@ class ATSNAgent:
             logger.info(f"Media file set in payload: {media_file}")
 
         # Run the graph
-        result = self.graph.invoke(self.state)
+        result = await self.graph.ainvoke(self.state)
         
         # Update state with result
         self.state = AgentState(**result)

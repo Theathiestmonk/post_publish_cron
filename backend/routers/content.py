@@ -263,6 +263,57 @@ async def get_all_content(
             detail=f"Failed to fetch content: {str(e)}"
         )
 
+@router.get("/created")
+async def get_created_content(
+    current_user: User = Depends(get_current_user),
+    limit: int = 50,
+    offset: int = 0
+):
+    """Get created content for the user from created_content table"""
+    try:
+        user_id = current_user.id
+        print(f"🔍 Fetching created content for user_id: {user_id}, email: {current_user.email}")
+
+        # Fetch from created_content table
+        response = supabase_admin.table("created_content").select("*").eq("user_id", user_id).order("created_at", desc=True).range(offset, offset + limit - 1).execute()
+
+        content_items = response.data if response.data else []
+        print(f"🔍 Found {len(content_items)} created content items")
+
+        # Transform the data to match what the frontend expects
+        transformed_items = []
+        for item in content_items:
+            transformed_item = {
+                "id": item["id"],
+                "title": item.get("title", f"Created Content {item['id'][:8]}"),
+                "content": item.get("content", ""),
+                "content_text": item.get("content", ""),
+                "hashtags": item.get("hashtags", []),
+                "images": item.get("images", []),
+                "platform": item.get("platform", "General"),
+                "content_type": item.get("content_type", "post"),
+                "created_at": item.get("created_at"),
+                "metadata": item.get("metadata", {}),
+                "archetype": item.get("archetype"),
+                "visual_metaphor": item.get("visual_metaphor"),
+                "hook_type": item.get("hook_type"),
+                "call_to_action": item.get("call_to_action"),
+                "engagement_question": item.get("engagement_question"),
+                "media_url": item.get("images", [])[0] if item.get("images") and len(item.get("images", [])) > 0 else None,
+                # Mock campaign data for compatibility
+                "content_campaigns": {
+                    "platform": item.get("platform", "General"),
+                    "channel": "Social Media"
+                }
+            }
+            transformed_items.append(transformed_item)
+
+        return transformed_items
+
+    except Exception as e:
+        logger.error(f"Error getting created content: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 @router.get("/by-date")
 async def get_content_by_date(
     date: str,

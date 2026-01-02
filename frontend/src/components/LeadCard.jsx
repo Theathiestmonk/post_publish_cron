@@ -16,62 +16,62 @@ import {
   Calendar
 } from 'lucide-react'
 
-const LeadCard = ({ lead, onClick, onDelete, isSelected = false, onSelect = null, selectionMode = false }) => {
+const LeadCard = ({ lead, onClick, onDelete, isSelected = false, onSelect = null, selectionMode = false, isDarkMode = false }) => {
   const getStatusConfig = (status) => {
     const configs = {
       new: {
-        color: 'from-blue-500 to-blue-600',
-        bgColor: 'bg-blue-50',
-        textColor: 'text-blue-700',
-        borderColor: 'border-blue-200',
+        color: 'from-green-400 to-green-500',
+        bgColor: isDarkMode ? 'bg-green-900/20' : 'bg-green-100',
+        textColor: isDarkMode ? 'text-green-300' : 'text-green-800',
+        borderColor: isDarkMode ? 'border-green-800' : 'border-green-300',
         icon: AlertCircle,
         label: 'New'
       },
       contacted: {
-        color: 'from-purple-500 to-purple-600',
-        bgColor: 'bg-purple-50',
-        textColor: 'text-purple-700',
-        borderColor: 'border-purple-200',
+        color: 'from-green-500 to-green-600',
+        bgColor: isDarkMode ? 'bg-green-900/30' : 'bg-green-200',
+        textColor: isDarkMode ? 'text-green-300' : 'text-green-900',
+        borderColor: isDarkMode ? 'border-green-700' : 'border-green-400',
         icon: MessageCircle,
         label: 'Contacted'
       },
       responded: {
-        color: 'from-green-500 to-green-600',
-        bgColor: 'bg-green-50',
-        textColor: 'text-green-700',
-        borderColor: 'border-green-200',
+        color: 'from-green-600 to-green-700',
+        bgColor: isDarkMode ? 'bg-green-900/40' : 'bg-green-300',
+        textColor: isDarkMode ? 'text-green-200' : 'text-green-950',
+        borderColor: isDarkMode ? 'border-green-600' : 'border-green-500',
         icon: CheckCircle,
         label: 'Responded'
       },
       qualified: {
-        color: 'from-orange-500 to-orange-600',
-        bgColor: 'bg-orange-50',
-        textColor: 'text-orange-700',
-        borderColor: 'border-orange-200',
+        color: 'from-amber-600 to-amber-700',
+        bgColor: isDarkMode ? 'bg-amber-900/20' : 'bg-amber-100',
+        textColor: isDarkMode ? 'text-amber-300' : 'text-amber-800',
+        borderColor: isDarkMode ? 'border-amber-800' : 'border-amber-300',
         icon: CheckCircle,
         label: 'Qualified'
       },
       converted: {
-        color: 'from-emerald-500 to-emerald-600',
-        bgColor: 'bg-emerald-50',
-        textColor: 'text-emerald-700',
-        borderColor: 'border-emerald-200',
+        color: 'from-amber-700 to-amber-800',
+        bgColor: isDarkMode ? 'bg-amber-900/30' : 'bg-amber-200',
+        textColor: isDarkMode ? 'text-amber-200' : 'text-amber-900',
+        borderColor: isDarkMode ? 'border-amber-700' : 'border-amber-400',
         icon: CheckCircle,
         label: 'Converted'
       },
       lost: {
-        color: 'from-gray-400 to-gray-500',
-        bgColor: 'bg-gray-50',
-        textColor: 'text-gray-700',
-        borderColor: 'border-gray-200',
+        color: 'from-amber-800 to-amber-900',
+        bgColor: isDarkMode ? 'bg-amber-900/40' : 'bg-amber-300',
+        textColor: isDarkMode ? 'text-amber-100' : 'text-amber-950',
+        borderColor: isDarkMode ? 'border-amber-600' : 'border-amber-500',
         icon: XCircle,
         label: 'Lost'
       },
       invalid: {
         color: 'from-red-500 to-red-600',
-        bgColor: 'bg-red-50',
-        textColor: 'text-red-700',
-        borderColor: 'border-red-200',
+        bgColor: isDarkMode ? 'bg-red-900/20' : 'bg-red-50',
+        textColor: isDarkMode ? 'text-red-400' : 'text-red-700',
+        borderColor: isDarkMode ? 'border-red-700' : 'border-red-300',
         icon: XCircle,
         label: 'Invalid'
       }
@@ -82,41 +82,41 @@ const LeadCard = ({ lead, onClick, onDelete, isSelected = false, onSelect = null
   const getPlatformIcon = (platform) => {
     switch (platform) {
       case 'Facebook':
-        return <Facebook className="w-3.5 h-3.5" />
+        return <Facebook className="w-6 h-6" />
       case 'Instagram':
-        return <Instagram className="w-3.5 h-3.5" />
+        return <Instagram className="w-6 h-6" />
       case 'Walk Ins':
-        return <LogIn className="w-3.5 h-3.5" />
+        return <LogIn className="w-6 h-6" />
       case 'Referral':
-        return <Users className="w-3.5 h-3.5" />
+        return <Users className="w-6 h-6" />
       case 'Email':
-        return <Mail className="w-3.5 h-3.5" />
+        return <Mail className="w-6 h-6" />
       case 'Website':
-        return <Globe className="w-3.5 h-3.5" />
+        return <Globe className="w-6 h-6" />
       case 'Phone Call':
-        return <Phone className="w-3.5 h-3.5" />
+        return <Phone className="w-6 h-6" />
       case 'Manual Entry':
       default:
-        return <User className="w-3.5 h-3.5" />
+        return <User className="w-6 h-6" />
     }
   }
 
   const getPlatformColor = (platform) => {
     switch (platform) {
       case 'Facebook':
-        return 'from-blue-600 to-blue-800'
+        return 'from-green-600 to-green-800'
       case 'Instagram':
-        return 'from-pink-500 via-purple-500 to-pink-600'
+        return 'from-amber-500 via-green-500 to-amber-600'
       case 'Walk Ins':
         return 'from-green-500 to-green-700'
       case 'Referral':
-        return 'from-purple-500 to-purple-700'
+        return 'from-amber-600 to-amber-800'
       case 'Email':
-        return 'from-blue-400 to-blue-600'
+        return 'from-green-400 to-green-600'
       case 'Website':
-        return 'from-indigo-500 to-indigo-700'
+        return 'from-amber-500 to-amber-700'
       case 'Phone Call':
-        return 'from-teal-500 to-teal-700'
+        return 'from-green-600 to-amber-700'
       case 'Manual Entry':
       default:
         return 'from-gray-500 to-gray-700'
@@ -190,10 +190,10 @@ const LeadCard = ({ lead, onClick, onDelete, isSelected = false, onSelect = null
   return (
     <div
       onClick={handleCardClick}
-      className={`bg-white rounded-lg shadow-md overflow-hidden ${selectionMode ? 'cursor-default' : 'cursor-pointer'} border-2 ${statusConfig.borderColor} ${isSelected ? 'ring-2 ring-purple-500' : ''}`}
+      className={`${isDarkMode ? 'bg-gray-800' : 'bg-white'} rounded-lg shadow-md overflow-hidden ${selectionMode ? 'cursor-default' : 'cursor-pointer'} border-2 ${statusConfig.borderColor} ${isSelected ? 'ring-2 ring-green-500' : ''}`}
     >
       {/* Header */}
-      <div className="bg-white p-2 border-b border-gray-200">
+      <div className={`${isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} p-2 border-b`}>
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-1.5 flex-1 min-w-0">
             {selectionMode && (
@@ -202,17 +202,17 @@ const LeadCard = ({ lead, onClick, onDelete, isSelected = false, onSelect = null
                 checked={isSelected}
                 onChange={handleCheckboxChange}
                 onClick={(e) => e.stopPropagation()}
-                className="w-4 h-4 rounded border-gray-300 bg-white text-purple-600 focus:ring-purple-500 focus:ring-2 cursor-pointer flex-shrink-0"
+                className={`w-4 h-4 rounded ${isDarkMode ? 'border-gray-600 bg-gray-700 text-green-400 focus:ring-green-400' : 'border-gray-300 bg-white text-green-600 focus:ring-green-500'} focus:ring-2 cursor-pointer flex-shrink-0`}
               />
             )}
-            <div className="w-6 h-6 rounded-full bg-gray-100 flex items-center justify-center flex-shrink-0">
+            <div className={`w-9 h-9 rounded-full ${isDarkMode ? 'bg-green-700' : 'bg-green-200'} flex items-center justify-center flex-shrink-0 ${isDarkMode ? 'text-green-100' : 'text-green-800'}`}>
               {getPlatformIcon(lead.source_platform)}
             </div>
             <div className="min-w-0 flex-1">
-              <h3 className="font-semibold text-xs truncate text-gray-900">
-                {lead.name || 'Unknown Lead'}
+              <h3 className={`font-semibold text-lg truncate ${isDarkMode ? 'text-gray-100' : 'text-gray-900'}`}>
+                {(lead.name || 'Unknown Lead').charAt(0).toUpperCase() + (lead.name || 'Unknown Lead').slice(1)}
               </h3>
-              <div className="flex items-center space-x-0.5 text-[10px] text-gray-600">
+              <div className={`flex items-center space-x-0.5 text-base ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
                 <span className="capitalize truncate">{lead.source_platform}</span>
                 <span>•</span>
                 <span className="truncate">{formatTimeAgo(lead.created_at)}</span>
@@ -225,10 +225,10 @@ const LeadCard = ({ lead, onClick, onDelete, isSelected = false, onSelect = null
                 e.stopPropagation()
                 onDelete(lead)
               }}
-              className="p-1 bg-gray-100 rounded flex-shrink-0 ml-0.5 hover:bg-gray-200 transition-colors"
+              className={`p-1 ${isDarkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'} rounded flex-shrink-0 ml-0.5 transition-colors`}
               title="Delete lead"
             >
-              <Trash2 className="w-3 h-3 text-gray-700" />
+              <Trash2 className={`w-3 h-3 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`} />
             </button>
           )}
         </div>
@@ -236,9 +236,9 @@ const LeadCard = ({ lead, onClick, onDelete, isSelected = false, onSelect = null
 
       {/* Follow-up Date */}
       {lead.follow_up_at && (
-        <div className="p-1.5 border-t border-gray-200">
-          <div className="flex items-center space-x-1 text-[10px] text-gray-600">
-            <Calendar className="w-3 h-3" />
+        <div className={`p-1.5 border-t ${isDarkMode ? 'border-gray-700' : 'border-gray-200'}`}>
+          <div className={`flex items-center space-x-1 text-base ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+            <Calendar className="w-5 h-5" />
             <span className="font-medium">Follow-up:</span>
             <span>{formatFollowUpDate(lead.follow_up_at)}</span>
           </div>
@@ -248,7 +248,7 @@ const LeadCard = ({ lead, onClick, onDelete, isSelected = false, onSelect = null
       {/* Remarks Section */}
       {lead.last_remark && (
         <div className={`p-1.5 ${statusConfig.bgColor} border-t ${statusConfig.borderColor}`}>
-          <p className="text-[10px] text-gray-700 line-clamp-2">
+          <p className={`text-base ${isDarkMode ? 'text-gray-300' : 'text-gray-700'} line-clamp-2`}>
             {lead.last_remark.charAt(0).toUpperCase() + lead.last_remark.slice(1)}
           </p>
         </div>
@@ -257,7 +257,7 @@ const LeadCard = ({ lead, onClick, onDelete, isSelected = false, onSelect = null
       {/* Content - Only show if form data exists */}
       {lead.form_data && Object.keys(lead.form_data).length > 0 && (
         <div className="p-1.5">
-          <p className="text-[10px] text-gray-500">
+          <p className={`text-base ${isDarkMode ? 'text-gray-300' : 'text-gray-500'}`}>
             {Object.keys(lead.form_data).length} form field{Object.keys(lead.form_data).length !== 1 ? 's' : ''} captured
           </p>
         </div>

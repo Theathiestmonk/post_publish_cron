@@ -31,7 +31,6 @@ const OnboardingForm = ({
     primary_goals: [],
     key_metrics_to_track: [],
     monthly_budget_range: '',
-    posting_frequency: '',
     preferred_content_types: [],
     content_themes: [],
     main_competitors: '',
@@ -69,7 +68,6 @@ const OnboardingForm = ({
     platform_tone_facebook: [],
     platform_tone_linkedin: [],
     platform_tone_youtube: [],
-    platform_tone_x: [],
   })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -136,9 +134,7 @@ const OnboardingForm = ({
   ]
 
   const socialPlatforms = [
-    'Instagram', 'Facebook', 'LinkedIn', 'YouTube', 'Pinterest', 
-    'X (Twitter)', 'TikTok', 'WhatsApp Business', 'Google Business Profile', 
-    'Snapchat', 'Quora', 'Reddit', 'Other'
+    'Instagram', 'Facebook', 'LinkedIn', 'YouTube', 'Google'
   ]
 
   const goals = [
@@ -156,9 +152,6 @@ const OnboardingForm = ({
     '₹25,000–₹50,000', '₹50,000+'
   ]
 
-  const postingFrequencies = [
-    '3x/Week', 'Weekly', 'Bi-Weekly', 'Bi monthly', 'Monthly', 'Manual'
-  ]
 
   const contentTypes = [
     'Image Posts', 'Reels', 'Carousels', 'Stories', 'Blogs', 'Videos', 

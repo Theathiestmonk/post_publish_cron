@@ -10,7 +10,7 @@ import EditProfileModal from './EditProfileModal'
 import { subscriptionAPI } from '../services/subscription'
 import { generateInvoicePDF } from '../services/pdfGenerator'
 
-const SettingsMenu = ({ isOpen, onClose }) => {
+const SettingsMenu = ({ isOpen, onClose, isDarkMode = false }) => {
   const navigate = useNavigate()
   const { user } = useAuth()
   const [connections, setConnections] = useState([])
@@ -456,16 +456,26 @@ const SettingsMenu = ({ isOpen, onClose }) => {
       
       {/* Settings Panel */}
       <div
-        className={`fixed top-0 left-0 h-full w-[600px] bg-white shadow-2xl z-50 transform transition-transform duration-300 ease-in-out ${
-          isOpen ? 'translate-x-0' : '-translate-x-full'
-        }`}
+        className={`fixed top-0 left-0 h-full w-[600px] shadow-2xl z-50 transform transition-transform duration-300 ease-in-out ${
+          isDarkMode
+            ? 'bg-gray-800 border-r border-gray-700'
+            : 'bg-white'
+        } ${isOpen ? 'translate-x-0' : '-translate-x-full'}`}
       >
         {/* Header */}
-        <div className="p-4 border-b border-gray-200 flex items-center justify-between">
-          <h2 className="text-lg font-bold text-gray-900">Settings</h2>
+        <div className={`p-4 border-b flex items-center justify-between ${
+          isDarkMode ? 'border-gray-700 bg-gray-900' : 'border-gray-200'
+        }`}>
+          <h2 className={`text-lg font-bold ${
+            isDarkMode ? 'text-gray-100' : 'text-gray-900'
+          }`}>Settings</h2>
           <button
             onClick={onClose}
-            className="p-1 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded transition-colors"
+            className={`p-1 rounded transition-colors ${
+              isDarkMode
+                ? 'text-gray-400 hover:text-gray-200 hover:bg-gray-700'
+                : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'
+            }`}
           >
             <X className="w-5 h-5" />
           </button>
@@ -474,7 +484,9 @@ const SettingsMenu = ({ isOpen, onClose }) => {
         {/* Two Column Content */}
         <div className="flex h-[calc(100vh-64px)] overflow-hidden">
           {/* Left Column - Tabs */}
-          <div className="w-1/3 border-r border-gray-200 overflow-y-auto">
+          <div className={`w-1/3 border-r overflow-y-auto ${
+            isDarkMode ? 'border-gray-700 bg-gray-900' : 'border-gray-200'
+          }`}>
             <div className="p-2">
               <button
                 onClick={() => {
@@ -483,7 +495,9 @@ const SettingsMenu = ({ isOpen, onClose }) => {
                 }}
                 className={`w-full flex items-center p-3 mb-2 rounded-lg transition-colors ${
                   activeTab === 'profile'
-                    ? 'bg-gradient-to-r from-pink-500 to-purple-600 text-white shadow-lg'
+                    ? 'bg-gradient-to-r from-green-500 to-emerald-600 text-white shadow-lg'
+                    : isDarkMode
+                    ? 'text-gray-300 hover:bg-gray-700'
                     : 'text-gray-700 hover:bg-gray-100'
                 }`}
               >
@@ -494,7 +508,9 @@ const SettingsMenu = ({ isOpen, onClose }) => {
                 onClick={() => setActiveTab('tools')}
                 className={`w-full flex items-center p-3 mb-2 rounded-lg transition-colors ${
                   activeTab === 'tools'
-                    ? 'bg-gradient-to-r from-pink-500 to-purple-600 text-white shadow-lg'
+                    ? 'bg-gradient-to-r from-green-500 to-emerald-600 text-white shadow-lg'
+                    : isDarkMode
+                    ? 'text-gray-300 hover:bg-gray-700'
                     : 'text-gray-700 hover:bg-gray-100'
                 }`}
               >
@@ -504,7 +520,9 @@ const SettingsMenu = ({ isOpen, onClose }) => {
                 onClick={() => setActiveTab('billing')}
                 className={`w-full flex items-center p-3 mb-2 rounded-lg transition-colors ${
                   activeTab === 'billing'
-                    ? 'bg-gradient-to-r from-pink-500 to-purple-600 text-white shadow-lg'
+                    ? 'bg-gradient-to-r from-green-500 to-emerald-600 text-white shadow-lg'
+                    : isDarkMode
+                    ? 'text-gray-300 hover:bg-gray-700'
                     : 'text-gray-700 hover:bg-gray-100'
                 }`}
               >
@@ -518,9 +536,13 @@ const SettingsMenu = ({ isOpen, onClose }) => {
           <div className="flex-1 overflow-y-auto p-4">
             {activeTab === 'profile' && (
               <div>
-                <h3 className="text-sm font-semibold text-gray-700 mb-4">Profile</h3>
+                <h3 className={`text-sm font-semibold mb-4 ${
+                  isDarkMode ? 'text-gray-200' : 'text-gray-700'
+                }`}>Profile</h3>
                 {profileLoading ? (
-                  <div className="text-sm text-gray-500">Loading profile...</div>
+                  <div className={`text-sm ${
+                    isDarkMode ? 'text-gray-400' : 'text-gray-500'
+                  }`}>Loading profile...</div>
                 ) : profile ? (
                   <div className="space-y-4">
                     {/* Basic Information */}
@@ -528,25 +550,33 @@ const SettingsMenu = ({ isOpen, onClose }) => {
                       {profile.name && (
                         <div>
                           <div className="text-xs font-medium text-gray-500 mb-1">Name</div>
-                          <div className="text-sm text-gray-900">{profile.name}</div>
+                          <div className={`text-sm ${
+                            isDarkMode ? 'text-gray-200' : 'text-gray-900'
+                          }`}>{profile.name}</div>
                         </div>
                       )}
                       {user?.email && (
                         <div>
                           <div className="text-xs font-medium text-gray-500 mb-1">Email</div>
-                          <div className="text-sm text-gray-900">{user.email}</div>
+                          <div className={`text-sm ${
+                            isDarkMode ? 'text-gray-200' : 'text-gray-900'
+                          }`}>{user.email}</div>
                         </div>
                       )}
                       {profile.business_name && (
                         <div>
                           <div className="text-xs font-medium text-gray-500 mb-1">Business Name</div>
-                          <div className="text-sm text-gray-900">{profile.business_name}</div>
+                          <div className={`text-sm ${
+                            isDarkMode ? 'text-gray-200' : 'text-gray-900'
+                          }`}>{profile.business_name}</div>
                         </div>
                       )}
                       {profile.business_description && (
                         <div>
                           <div className="text-xs font-medium text-gray-500 mb-1">Business Description</div>
-                          <div className={`text-sm text-gray-900 ${!isDescriptionExpanded ? 'line-clamp-15' : ''}`}>
+                          <div className={`text-sm ${!isDescriptionExpanded ? 'line-clamp-15' : ''} ${
+                            isDarkMode ? 'text-gray-200' : 'text-gray-900'
+                          }`}>
                             {profile.business_description}
                           </div>
                           {(profile.business_description.length > 750 || profile.business_description.split('\n').length > 15) && (
@@ -562,30 +592,42 @@ const SettingsMenu = ({ isOpen, onClose }) => {
                       {profile.industry && Array.isArray(profile.industry) && profile.industry.length > 0 && (
                         <div>
                           <div className="text-xs font-medium text-gray-500 mb-1">Industry</div>
-                          <div className="text-sm text-gray-900">{profile.industry.join(', ')}</div>
+                          <div className={`text-sm ${
+                            isDarkMode ? 'text-gray-200' : 'text-gray-900'
+                          }`}>{profile.industry.join(', ')}</div>
                         </div>
                       )}
                     </div>
                     
                     {/* Action Button */}
-                    <div className="pt-4 border-t border-gray-200">
+                    <div className={`pt-4 border-t ${
+                      isDarkMode ? 'border-gray-700' : 'border-gray-200'
+                    }`}>
                       <button
                         onClick={() => setIsEditModalOpen(true)}
-                        className="w-full flex items-center justify-center p-3 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+                        className={`w-full flex items-center justify-center p-3 border rounded-lg transition-colors ${
+                          isDarkMode
+                            ? 'border-gray-600 hover:bg-gray-700 text-gray-200'
+                            : 'border-gray-200 hover:bg-gray-50 text-gray-900'
+                        }`}
                       >
-                        <span className="text-sm font-medium text-gray-900">Edit Profile</span>
+                        <span className="text-sm font-medium">Edit Profile</span>
                       </button>
                     </div>
                   </div>
                 ) : (
-                  <div className="text-sm text-gray-500">No profile data available</div>
+                  <div className={`text-sm ${
+                    isDarkMode ? 'text-gray-400' : 'text-gray-500'
+                  }`}>No profile data available</div>
                 )}
               </div>
             )}
 
             {activeTab === 'tools' && (
               <div>
-                <h3 className="text-sm font-semibold text-gray-700 mb-4">Connections</h3>
+                <h3 className={`text-sm font-semibold mb-4 ${
+                  isDarkMode ? 'text-gray-200' : 'text-gray-700'
+                }`}>Connections</h3>
                 
                  {/* All Platforms as Toggle Switches */}
                  <div className="space-y-3">
@@ -602,10 +644,14 @@ const SettingsMenu = ({ isOpen, onClose }) => {
                          key={platform.id}
                          className="flex items-center justify-between py-2"
                        >
-                         <span className="text-sm font-medium text-gray-900">
+                         <span className={`text-sm font-medium ${
+                           isDarkMode ? 'text-gray-200' : 'text-gray-900'
+                         }`}>
                            {platform.name}
                            {isConnected && pageName && (
-                             <span className="text-gray-500 font-normal ml-1">({pageName})</span>
+                             <span className={`font-normal ml-1 ${
+                               isDarkMode ? 'text-gray-400' : 'text-gray-500'
+                             }`}>({pageName})</span>
                            )}
                          </span>
                          <div className="flex items-center">
@@ -652,34 +698,52 @@ const SettingsMenu = ({ isOpen, onClose }) => {
 
             {activeTab === 'billing' && (
               <div>
-                <h3 className="text-sm font-semibold text-gray-700 mb-4">Billing</h3>
+                <h3 className={`text-sm font-semibold mb-4 ${
+                  isDarkMode ? 'text-gray-200' : 'text-gray-700'
+                }`}>Billing</h3>
                 {billingLoading ? (
-                  <div className="text-sm text-gray-500">Loading billing information...</div>
+                  <div className={`text-sm ${
+                    isDarkMode ? 'text-gray-400' : 'text-gray-500'
+                  }`}>Loading billing information...</div>
                 ) : (
                   <div className="space-y-4">
                     {/* Current Plan */}
                     {subscriptionStatus && (
-                      <div className="p-4 bg-gray-50 rounded-lg">
-                        <h4 className="text-xs font-medium text-gray-600 mb-3 uppercase">Current Plan</h4>
+                      <div className={`p-4 rounded-lg ${
+                        isDarkMode ? 'bg-gray-700' : 'bg-gray-50'
+                      }`}>
+                        <h4 className={`text-xs font-medium mb-3 uppercase ${
+                          isDarkMode ? 'text-gray-300' : 'text-gray-600'
+                        }`}>Current Plan</h4>
                         <div className="space-y-2">
                           <div>
                             <div className="text-xs text-gray-500 mb-1">Plan</div>
-                            <div className="text-sm font-medium text-gray-900 capitalize">
+                            <div className={`text-sm font-medium capitalize ${
+                              isDarkMode ? 'text-gray-200' : 'text-gray-900'
+                            }`}>
                               {subscriptionStatus.plan || 'No active plan'}
                             </div>
                           </div>
                           {subscriptionStatus.status && (
                             <div>
-                              <div className="text-xs text-gray-500 mb-1">Status</div>
-                              <div className="text-sm font-medium text-gray-900 capitalize">
+                              <div className={`text-xs mb-1 ${
+                                isDarkMode ? 'text-gray-400' : 'text-gray-500'
+                              }`}>Status</div>
+                              <div className={`text-sm font-medium capitalize ${
+                                isDarkMode ? 'text-gray-200' : 'text-gray-900'
+                              }`}>
                                 {subscriptionStatus.status}
                               </div>
                             </div>
                           )}
                           {subscriptionStatus.billing_cycle && (
                             <div>
-                              <div className="text-xs text-gray-500 mb-1">Billing Cycle</div>
-                              <div className="text-sm font-medium text-gray-900 capitalize">
+                              <div className={`text-xs mb-1 ${
+                                isDarkMode ? 'text-gray-400' : 'text-gray-500'
+                              }`}>Billing Cycle</div>
+                              <div className={`text-sm font-medium capitalize ${
+                                isDarkMode ? 'text-gray-200' : 'text-gray-900'
+                              }`}>
                                 {subscriptionStatus.billing_cycle}
                               </div>
                             </div>
@@ -698,15 +762,23 @@ const SettingsMenu = ({ isOpen, onClose }) => {
 
                     {/* Latest Bill Paid */}
                     {billingHistory && billingHistory.length > 0 && (
-                      <div className="p-4 bg-gray-50 rounded-lg">
-                        <h4 className="text-xs font-medium text-gray-600 mb-3 uppercase">Latest Bill Paid</h4>
+                      <div className={`p-4 rounded-lg ${
+                        isDarkMode ? 'bg-gray-700' : 'bg-gray-50'
+                      }`}>
+                        <h4 className={`text-xs font-medium mb-3 uppercase ${
+                          isDarkMode ? 'text-gray-300' : 'text-gray-600'
+                        }`}>Latest Bill Paid</h4>
                         {(() => {
                           const latestBill = billingHistory[0]
                           return (
                             <div className="space-y-2">
                               <div>
-                                <div className="text-xs text-gray-500 mb-1">Amount</div>
-                                <div className="text-sm font-medium text-gray-900">
+                                <div className={`text-xs mb-1 ${
+                                  isDarkMode ? 'text-gray-400' : 'text-gray-500'
+                                }`}>Amount</div>
+                                <div className={`text-sm font-medium ${
+                                  isDarkMode ? 'text-gray-200' : 'text-gray-900'
+                                }`}>
                                   {formatCurrency(latestBill.amount)}
                                 </div>
                               </div>
@@ -720,8 +792,12 @@ const SettingsMenu = ({ isOpen, onClose }) => {
                               </div>
                               {latestBill.status && (
                                 <div>
-                                  <div className="text-xs text-gray-500 mb-1">Status</div>
-                                  <div className="text-sm font-medium text-gray-900 capitalize">
+                                  <div className={`text-xs mb-1 ${
+                                isDarkMode ? 'text-gray-400' : 'text-gray-500'
+                              }`}>Status</div>
+                                  <div className={`text-sm font-medium capitalize ${
+                                isDarkMode ? 'text-gray-200' : 'text-gray-900'
+                              }`}>
                                     {latestBill.status}
                                   </div>
                                 </div>
@@ -733,10 +809,16 @@ const SettingsMenu = ({ isOpen, onClose }) => {
                         {/* Download Bill Button */}
                         <button
                           onClick={handleDownloadBill}
-                          className="w-full mt-4 flex items-center justify-center gap-2 p-3 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+                          className={`w-full mt-4 flex items-center justify-center gap-2 p-3 border rounded-lg transition-colors ${
+                            isDarkMode
+                              ? 'border-gray-600 hover:bg-gray-700 text-gray-200'
+                              : 'border-gray-200 hover:bg-gray-50 text-gray-900'
+                          }`}
                         >
-                          <Download className="w-4 h-4 text-gray-600" />
-                          <span className="text-sm font-medium text-gray-900">Download Bill</span>
+                          <Download className={`w-4 h-4 ${
+                            isDarkMode ? 'text-gray-400' : 'text-gray-600'
+                          }`} />
+                          <span className="text-sm font-medium">Download Bill</span>
                         </button>
                       </div>
                     )}
