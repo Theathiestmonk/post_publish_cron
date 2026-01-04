@@ -1,16 +1,105 @@
-services:
-  - type: web
-    name: emily-backend
-    env: python
-    buildCommand: pip install -r requirements.txt && playwright install chromium
-    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
-    envVars:
-      - key: SUPABASE_URL
-        sync: false
-      - key: SUPABASE_SERVICE_ROLE_KEY
-        sync: false
-      - key: OPENAI_API_KEY
-        sync: false
-      - key: ENVIRONMENT
-        value: production
+# Render Deployment Configuration for MVP Social Media Publisher
+# Handles 100 users × 5 posts = 500 posts with concurrent publishing
+# Deployed from backend/ directory
 
+services:
+  # Main web service (required for cron jobs)
+  - type: web
+    name: emily-social-publisher
+    runtime: python3
+    region: oregon  # Good for global users
+    plan: free  # Free tier perfect for MVP
+
+    # Build configuration (now relative to backend/)
+    buildCommand: |
+      pip install -r requirements.txt
+      echo "Build completed successfully"
+
+    # Start command (simple health check)
+    startCommand: |
+      python -c "
+      print('Emily Social Publisher MVP - Ready')
+      print('MVP Specs: 100 users × 5 posts = 500 posts capacity')
+      print('Concurrent publishing: 21 posts simultaneous')
+      print('Platforms: Facebook, Instagram, LinkedIn, YouTube')
+      import time
+      while True:
+          time.sleep(300)  # Keep service alive
+      "
+
+    # Health check
+    healthCheckPath: /
+    healthCheckTimeout: 30
+
+    # Environment variables
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.0
+      - key: SUPABASE_URL
+        sync: false  # Set in Render dashboard
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false  # Set in Render dashboard
+      - key: ENCRYPTION_KEY
+        sync: false  # Set in Render dashboard
+
+# Cron jobs for social media publishing
+cron:
+  - name: mvp-social-publisher
+    schedule: "* * * * *"  # Every minute (MVP frequency)
+    command: |
+      echo "Starting MVP cron job - $(date)"
+      python -c "
+      import asyncio
+      import sys
+      import logging
+
+      # Configure logging for Render
+      logging.basicConfig(
+          level=logging.INFO,
+          format='%(asctime)s - %(levelname)s - %(message)s'
+      )
+
+      try:
+          from cron_job.timezone_scheduler import TimezoneAwareScheduler
+
+          async def run_mvp_cron():
+              print('MVP Cron Job Started')
+              print('Configuration: 100 users × 5 posts capacity')
+
+              scheduler = TimezoneAwareScheduler()
+
+              # Log MVP configuration
+              print(f'MVP Limits - Users: {scheduler.MVP_MAX_USERS}, Posts/User: {scheduler.MVP_MAX_POSTS_PER_USER}')
+              print(f'Concurrent Capacity: {sum(scheduler.PLATFORM_CONCURRENT_LIMITS.values())} posts')
+
+              # Run the publishing logic
+              published_count = await scheduler.find_scheduled_content_timezone_aware()
+
+              if published_count > 0:
+                  print(f'SUCCESS: Published {published_count} posts')
+              else:
+                  print('INFO: No posts due at this time')
+
+              print('MVP Cron Job Completed Successfully')
+
+          # Execute the cron job
+          asyncio.run(run_mvp_cron())
+
+      except Exception as e:
+          print(f'ERROR in MVP cron job: {e}')
+          import traceback
+          traceback.print_exc()
+          sys.exit(1)
+      "
+
+# Optional: Background worker service (for future scaling)
+# Uncomment when you need queue-based processing
+# services:
+#   - type: worker
+#     name: emily-publisher-worker
+#     runtime: python3
+#     plan: free
+#     buildCommand: pip install -r backend/requirements.txt
+#     startCommand: |
+#       cd backend && \
+#       python cron_job/enterprise_queue_system.py
