@@ -16,33 +16,7 @@ services:
       echo "Build completed successfully"
 
     # Start command with Flask server (binds to port for Render)
-    startCommand: |
-      python -c "
-      from flask import Flask, jsonify
-      import os
-
-      app = Flask(__name__)
-
-      @app.route('/')
-      def health():
-          return jsonify({
-              'status': 'healthy',
-              'service': 'Emily Social Publisher MVP',
-              'mvp_specs': '100 users × 5 posts',
-              'capacity': '500 posts',
-              'concurrent': '21 posts simultaneous',
-              'platforms': ['Facebook', 'Instagram', 'LinkedIn', 'YouTube'],
-              'version': '1.0.0'
-          })
-
-      print('🚀 Emily Social Publisher MVP - Starting...')
-      print('📊 MVP Specs: 100 users × 5 posts = 500 posts capacity')
-      print('⚡ Concurrent publishing: 21 posts simultaneous')
-      print('🌐 Platforms: Facebook, Instagram, LinkedIn, YouTube')
-      print('🔌 Web service binding to port 10000...')
-
-      app.run(host='0.0.0.0', port=10000, debug=False)
-      "
+    startCommand: python start_server.py
 
     # Health check
     healthCheckPath: /
