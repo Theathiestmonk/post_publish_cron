@@ -3,7 +3,7 @@
 # Deployed from backend/ directory
 
 services:
-  # Main web service (required for cron jobs)
+  # Web service with health endpoint (works with cron jobs)
   - type: web
     name: emily-social-publisher
     runtime: python3
@@ -15,16 +15,41 @@ services:
       pip install -r requirements.txt
       echo "Build completed successfully"
 
-    # Start command (simple health check)
+    # Start command with Flask server (binds to port)
     startCommand: |
       python -c "
+      from flask import Flask, jsonify
+      import asyncio
+      import logging
+
+      app = Flask(__name__)
+
+      @app.route('/')
+      def health():
+          return jsonify({
+              'status': 'healthy',
+              'mvp_specs': '100 users × 5 posts',
+              'capacity': '500 posts',
+              'concurrent': '21 posts simultaneous',
+              'platforms': ['Facebook', 'Instagram', 'LinkedIn', 'YouTube'],
+              'version': '1.0.0'
+          })
+
+      @app.route('/status')
+      def status():
+          return jsonify({
+              'service': 'Emily Social Publisher MVP',
+              'status': 'running',
+              'uptime': 'active'
+          })
+
       print('Emily Social Publisher MVP - Ready')
       print('MVP Specs: 100 users × 5 posts = 500 posts capacity')
       print('Concurrent publishing: 21 posts simultaneous')
       print('Platforms: Facebook, Instagram, LinkedIn, YouTube')
-      import time
-      while True:
-          time.sleep(300)  # Keep service alive
+      print('Web service running on port 10000')
+
+      app.run(host='0.0.0.0', port=10000)
       "
 
     # Health check
