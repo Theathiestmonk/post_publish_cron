@@ -1,9 +1,7 @@
-# Minimal dependencies for cron job system
+# Minimal dependencies for MVP Social Publisher
 supabase>=1.0.0
 python-dotenv>=0.19.0
 cryptography>=3.4.0
 pytz>=2021.1
 httpx>=0.20.0
 flask>=2.3.0
-
-

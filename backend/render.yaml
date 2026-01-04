@@ -15,12 +15,11 @@ services:
       pip install -r requirements.txt
       echo "Build completed successfully"
 
-    # Start command with Flask server (binds to port)
+    # Start command with Flask server (binds to port for Render)
     startCommand: |
       python -c "
       from flask import Flask, jsonify
-      import asyncio
-      import logging
+      import os
 
       app = Flask(__name__)
 
@@ -28,6 +27,7 @@ services:
       def health():
           return jsonify({
               'status': 'healthy',
+              'service': 'Emily Social Publisher MVP',
               'mvp_specs': '100 users × 5 posts',
               'capacity': '500 posts',
               'concurrent': '21 posts simultaneous',
@@ -35,21 +35,13 @@ services:
               'version': '1.0.0'
           })
 
-      @app.route('/status')
-      def status():
-          return jsonify({
-              'service': 'Emily Social Publisher MVP',
-              'status': 'running',
-              'uptime': 'active'
-          })
+      print('🚀 Emily Social Publisher MVP - Starting...')
+      print('📊 MVP Specs: 100 users × 5 posts = 500 posts capacity')
+      print('⚡ Concurrent publishing: 21 posts simultaneous')
+      print('🌐 Platforms: Facebook, Instagram, LinkedIn, YouTube')
+      print('🔌 Web service binding to port 10000...')
 
-      print('Emily Social Publisher MVP - Ready')
-      print('MVP Specs: 100 users × 5 posts = 500 posts capacity')
-      print('Concurrent publishing: 21 posts simultaneous')
-      print('Platforms: Facebook, Instagram, LinkedIn, YouTube')
-      print('Web service running on port 10000')
-
-      app.run(host='0.0.0.0', port=10000)
+      app.run(host='0.0.0.0', port=10000, debug=False)
       "
 
     # Health check
