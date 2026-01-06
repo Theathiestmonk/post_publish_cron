@@ -1,39 +1,8 @@
-# Render Deployment Configuration for MVP Social Media Publisher
-# Handles 100 users × 5 posts = 500 posts with concurrent publishing
-# Deployed from backend/ directory
+# Render Deployment Configuration - Cron Job Only
+# Standalone cron job for social media publishing
+# No web service needed - just cron job functionality
 
-services:
-  # Web service with health endpoint (works with cron jobs)
-  - type: web
-    name: emily-social-publisher
-    runtime: python3
-    region: oregon  # Good for global users
-    plan: starter  # UPGRADED: Starter plan required for cron jobs
-
-    # Build configuration (now relative to backend/)
-    buildCommand: |
-      pip install -r requirements.txt
-      echo "Build completed successfully"
-
-    # Start command with Flask server (binds to port for Render)
-    startCommand: python start_server.py
-
-    # Health check
-    healthCheckPath: /
-    healthCheckTimeout: 30
-
-    # Environment variables
-    envVars:
-      - key: PYTHON_VERSION
-        value: 3.11.0
-      - key: SUPABASE_URL
-        sync: false  # Set in Render dashboard
-      - key: SUPABASE_SERVICE_ROLE_KEY
-        sync: false  # Set in Render dashboard
-      - key: ENCRYPTION_KEY
-        sync: false  # Set in Render dashboard
-
-# Cron jobs for social media publishing (REQUIRES STARTER PLAN)
+# Cron job service for social media publishing
 cron:
   - name: mvp-social-publisher
     schedule: "* * * * *"  # Every minute (MVP frequency)
@@ -84,14 +53,11 @@ cron:
           sys.exit(1)
       "
 
-# Optional: Background worker service (for future scaling)
-# Uncomment when you need queue-based processing
-# services:
-#   - type: worker
-#     name: emily-publisher-worker
-#     runtime: python3
-#     plan: starter  # Would also need starter plan
-#     buildCommand: pip install -r backend/requirements.txt
-#     startCommand: |
-#       cd backend && \
-#       python cron_job/enterprise_queue_system.py
+# Environment variables for cron job
+envVars:
+  - key: SUPABASE_URL
+    sync: false
+  - key: SUPABASE_SERVICE_ROLE_KEY
+    sync: false
+  - key: ENCRYPTION_KEY
+    sync: false
