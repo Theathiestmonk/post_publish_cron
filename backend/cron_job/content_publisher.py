@@ -3,6 +3,7 @@ Content Publisher Service
 Handles publishing content to social media platforms for both created_content and content_posts tables
 """
 
+import asyncio
 import logging
 from datetime import datetime
 from typing import Dict, Any, Optional, List
@@ -552,32 +553,35 @@ class ContentPublisherService:
 
             # Prepare container params based on media type
             if is_video:
-                # For posts with videos/reels
+                # For videos/reels - keep URL approach (videos are complex to upload)
                 container_params = {
                     "media_type": "REELS",
                     "video_url": media_url,
                     "caption": caption,
                     "access_token": access_token
                 }
-                logger.info(f"Creating Instagram reel with video")
+                logger.info(f"Creating Instagram reel with video URL")
+                files = None
             else:
-                # For posts with images
+                # For images - USE URL APPROACH (Instagram requires public URLs)
+                logger.info(f"Using URL approach for Instagram image: {media_url[:100]}...")
+                files = None
                 container_params = {
                     "image_url": media_url,
                     "caption": caption,
                     "access_token": access_token
                 }
-                logger.info(f"Creating Instagram post with image")
 
-            # Use longer timeout for videos/reels as they take longer to process
+            # Use longer timeout for videos/reels
             timeout = 180.0 if is_video else 60.0
             async with httpx.AsyncClient(timeout=timeout) as client:
                 # Create container
                 logger.info(f"Creating Instagram media container for {'video' if is_video else 'image'}...")
-                logger.info(f"Media URL: {media_url[:100]}...")
+                logger.info(f"Using URL approach: {media_url[:100]}...")
                 logger.info(f"Caption length: {len(caption)} characters")
 
                 try:
+                    # All Instagram uploads now use URL approach with params
                     container_response = await client.post(container_url, params=container_params)
                     container_response.raise_for_status()
                     container_result = container_response.json()
@@ -605,6 +609,7 @@ class ContentPublisherService:
                         logger.warning("- Caption may be too long (>2200 characters)")
                         logger.warning("- Access token may lack publish_to_instagram permission")
                         logger.warning("- Instagram Business account may not be properly set up")
+                        logger.warning("- The image URL might be from a private/supabase storage that Instagram can't access")
                     elif e.response.status_code == 401:
                         logger.warning("401 Unauthorized - Token may be invalid or expired")
                     elif e.response.status_code == 403:
@@ -612,18 +617,19 @@ class ContentPublisherService:
 
                     return False
 
-                # For videos/reels, wait for processing before publishing
-                if is_video:
-                    # Check status and wait for processing
-                    status_url = f"https://graph.facebook.com/v18.0/{creation_id}"
-                    max_wait_time = 120  # Maximum 2 minutes wait
-                    wait_interval = 5  # Check every 5 seconds
-                    elapsed_time = 0
+                # Wait for media processing before publishing (both images and videos)
+                status_url = f"https://graph.facebook.com/v18.0/{creation_id}"
+                max_wait_time = 120 if is_video else 60  # Videos get 2 minutes, images get 1 minute
+                wait_interval = 5  # Check every 5 seconds
+                elapsed_time = 0
 
-                    while elapsed_time < max_wait_time:
-                        await httpx.sleep(wait_interval)
-                        elapsed_time += wait_interval
+                logger.info(f"Waiting for {'video' if is_video else 'image'} processing (max {max_wait_time}s)...")
 
+                while elapsed_time < max_wait_time:
+                    await asyncio.sleep(wait_interval)
+                    elapsed_time += wait_interval
+
+                    try:
                         status_response = await client.get(status_url, params={"access_token": access_token, "fields": "status_code"})
                         if status_response.status_code == 200:
                             status_data = status_response.json()
@@ -631,15 +637,23 @@ class ContentPublisherService:
 
                             # Status codes: "FINISHED" = ready, "IN_PROGRESS" = still processing, "ERROR" = failed
                             if status_code == "FINISHED":
-                                logger.info(f"Video processing finished, ready to publish")
+                                logger.info(f"{'Video' if is_video else 'Image'} processing finished, ready to publish")
                                 break
                             elif status_code == "ERROR":
-                                logger.error(f"Video processing failed with error status")
+                                logger.error(f"{'Video' if is_video else 'Image'} processing failed with error status")
                                 return False
+                            elif status_code == "IN_PROGRESS":
+                                logger.info(f"Still processing... ({elapsed_time}s elapsed)")
                             # If IN_PROGRESS, continue waiting
                         else:
-                            logger.warning(f"Could not check video status, proceeding anyway")
+                            logger.warning(f"Could not check media status, proceeding anyway (HTTP {status_response.status_code})")
                             break
+                    except Exception as status_error:
+                        logger.warning(f"Error checking media status: {status_error}, proceeding anyway")
+                        break
+
+                if elapsed_time >= max_wait_time:
+                    logger.warning(f"Media processing timeout after {max_wait_time}s, proceeding with publish attempt")
 
                 # Step 2: Publish the container
                 publish_url = f"https://graph.facebook.com/v18.0/{page_id}/media_publish"
