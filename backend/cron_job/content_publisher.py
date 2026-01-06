@@ -529,6 +529,24 @@ class ContentPublisherService:
                 hashtag_string = " ".join([f"#{tag.replace('#', '')}" for tag in hashtags])
                 caption += f"\n\n{hashtag_string}"
 
+            # Validate caption length (Instagram limit is 2200 characters)
+            if len(caption) > 2200:
+                logger.warning(f"Caption too long ({len(caption)} chars), truncating to 2200...")
+                caption = caption[:2197] + "..."
+
+            # Validate image URL accessibility (basic check)
+            if not is_video and media_url:
+                # Check if URL is accessible
+                try:
+                    async with httpx.AsyncClient(timeout=10.0) as check_client:
+                        head_response = await check_client.head(media_url)
+                        if head_response.status_code != 200:
+                            logger.warning(f"Image URL returned {head_response.status_code}: {media_url[:100]}...")
+                            logger.warning("Instagram may not be able to access this image")
+                except Exception as e:
+                    logger.warning(f"Could not verify image URL accessibility: {e}")
+                    logger.warning("Instagram may not be able to access this image")
+
             # Step 1: Create media container
             container_url = f"https://graph.facebook.com/v18.0/{page_id}/media"
 
@@ -555,13 +573,43 @@ class ContentPublisherService:
             timeout = 180.0 if is_video else 60.0
             async with httpx.AsyncClient(timeout=timeout) as client:
                 # Create container
-                container_response = await client.post(container_url, params=container_params)
-                container_response.raise_for_status()
-                container_result = container_response.json()
-                creation_id = container_result.get("id")
+                logger.info(f"Creating Instagram media container for {'video' if is_video else 'image'}...")
+                logger.info(f"Media URL: {media_url[:100]}...")
+                logger.info(f"Caption length: {len(caption)} characters")
 
-                if not creation_id:
-                    logger.error(f"Failed to create Instagram media container: {container_result}")
+                try:
+                    container_response = await client.post(container_url, params=container_params)
+                    container_response.raise_for_status()
+                    container_result = container_response.json()
+                    creation_id = container_result.get("id")
+
+                    if not creation_id:
+                        logger.error(f"Failed to create Instagram media container: {container_result}")
+                        return False
+
+                except httpx.HTTPStatusError as e:
+                    # Handle HTTP errors specifically for media container creation
+                    error_data = {}
+                    try:
+                        error_data = e.response.json() if e.response else {}
+                    except:
+                        error_data = {"error": str(e)}
+
+                    logger.error(f"Instagram media container creation failed: {error_data}")
+
+                    # Log specific error details for debugging
+                    if e.response.status_code == 400:
+                        logger.warning("400 Bad Request - Media container creation failed:")
+                        logger.warning("- Image/video URL may not be accessible by Instagram")
+                        logger.warning("- Image may be too large (>8MB) or wrong format")
+                        logger.warning("- Caption may be too long (>2200 characters)")
+                        logger.warning("- Access token may lack publish_to_instagram permission")
+                        logger.warning("- Instagram Business account may not be properly set up")
+                    elif e.response.status_code == 401:
+                        logger.warning("401 Unauthorized - Token may be invalid or expired")
+                    elif e.response.status_code == 403:
+                        logger.warning("403 Forbidden - Token lacks Instagram publish permissions")
+
                     return False
 
                 # For videos/reels, wait for processing before publishing
