@@ -8,7 +8,7 @@ services:
     name: emily-social-publisher
     runtime: python3
     region: oregon  # Good for global users
-    plan: free  # Free tier perfect for MVP
+    plan: starter  # UPGRADED: Starter plan required for cron jobs
 
     # Build configuration (now relative to backend/)
     buildCommand: |
@@ -33,11 +33,12 @@ services:
       - key: ENCRYPTION_KEY
         sync: false  # Set in Render dashboard
 
-# Cron jobs for social media publishing
+# Cron jobs for social media publishing (REQUIRES STARTER PLAN)
 cron:
   - name: mvp-social-publisher
     schedule: "* * * * *"  # Every minute (MVP frequency)
     command: |
+      cd backend && \
       echo "Starting MVP cron job - $(date)"
       python -c "
       import asyncio
@@ -89,8 +90,239 @@ cron:
 #   - type: worker
 #     name: emily-publisher-worker
 #     runtime: python3
-#     plan: free
+#     plan: starter  # Would also need starter plan
 #     buildCommand: pip install -r backend/requirements.txt
 #     startCommand: |
 #       cd backend && \
 #       python cron_job/enterprise_queue_system.py
+
+
+              scheduler = TimezoneAwareScheduler()
+
+
+
+              # Log MVP configuration
+
+              print(f'MVP Limits - Users: {scheduler.MVP_MAX_USERS}, Posts/User: {scheduler.MVP_MAX_POSTS_PER_USER}')
+
+              print(f'Concurrent Capacity: {sum(scheduler.PLATFORM_CONCURRENT_LIMITS.values())} posts')
+
+
+
+              # Run the publishing logic
+
+              published_count = await scheduler.find_scheduled_content_timezone_aware()
+
+
+
+              if published_count > 0:
+
+                  print(f'SUCCESS: Published {published_count} posts')
+
+              else:
+
+                  print('INFO: No posts due at this time')
+
+
+
+              print('MVP Cron Job Completed Successfully')
+
+
+
+          # Execute the cron job
+
+          asyncio.run(run_mvp_cron())
+
+
+
+      except Exception as e:
+
+          print(f'ERROR in MVP cron job: {e}')
+
+          import traceback
+
+          traceback.print_exc()
+
+          sys.exit(1)
+
+      "
+
+
+
+# Optional: Background worker service (for future scaling)
+
+# Uncomment when you need queue-based processing
+
+# services:
+
+#   - type: worker
+
+#     name: emily-publisher-worker
+
+#     runtime: python3
+
+#     plan: free
+
+#     buildCommand: pip install -r backend/requirements.txt
+
+#     startCommand: |
+
+#       cd backend && \
+
+#       python cron_job/enterprise_queue_system.py
+
+
+
+
+              scheduler = TimezoneAwareScheduler()
+
+
+
+              # Log MVP configuration
+
+              print(f'MVP Limits - Users: {scheduler.MVP_MAX_USERS}, Posts/User: {scheduler.MVP_MAX_POSTS_PER_USER}')
+
+              print(f'Concurrent Capacity: {sum(scheduler.PLATFORM_CONCURRENT_LIMITS.values())} posts')
+
+
+
+              # Run the publishing logic
+
+              published_count = await scheduler.find_scheduled_content_timezone_aware()
+
+
+
+              if published_count > 0:
+
+                  print(f'SUCCESS: Published {published_count} posts')
+
+              else:
+
+                  print('INFO: No posts due at this time')
+
+
+
+              print('MVP Cron Job Completed Successfully')
+
+
+
+          # Execute the cron job
+
+          asyncio.run(run_mvp_cron())
+
+
+
+      except Exception as e:
+
+          print(f'ERROR in MVP cron job: {e}')
+
+          import traceback
+
+          traceback.print_exc()
+
+          sys.exit(1)
+
+      "
+
+
+
+# Optional: Background worker service (for future scaling)
+
+# Uncomment when you need queue-based processing
+
+# services:
+
+#   - type: worker
+
+#     name: emily-publisher-worker
+
+#     runtime: python3
+
+#     plan: free
+
+#     buildCommand: pip install -r backend/requirements.txt
+
+#     startCommand: |
+
+#       cd backend && \
+
+#       python cron_job/enterprise_queue_system.py
+
+
+
+
+              scheduler = TimezoneAwareScheduler()
+
+
+
+              # Log MVP configuration
+
+              print(f'MVP Limits - Users: {scheduler.MVP_MAX_USERS}, Posts/User: {scheduler.MVP_MAX_POSTS_PER_USER}')
+
+              print(f'Concurrent Capacity: {sum(scheduler.PLATFORM_CONCURRENT_LIMITS.values())} posts')
+
+
+
+              # Run the publishing logic
+
+              published_count = await scheduler.find_scheduled_content_timezone_aware()
+
+
+
+              if published_count > 0:
+
+                  print(f'SUCCESS: Published {published_count} posts')
+
+              else:
+
+                  print('INFO: No posts due at this time')
+
+
+
+              print('MVP Cron Job Completed Successfully')
+
+
+
+          # Execute the cron job
+
+          asyncio.run(run_mvp_cron())
+
+
+
+      except Exception as e:
+
+          print(f'ERROR in MVP cron job: {e}')
+
+          import traceback
+
+          traceback.print_exc()
+
+          sys.exit(1)
+
+      "
+
+
+
+# Optional: Background worker service (for future scaling)
+
+# Uncomment when you need queue-based processing
+
+# services:
+
+#   - type: worker
+
+#     name: emily-publisher-worker
+
+#     runtime: python3
+
+#     plan: free
+
+#     buildCommand: pip install -r backend/requirements.txt
+
+#     startCommand: |
+
+#       cd backend && \
+
+#       python cron_job/enterprise_queue_system.py
+
+

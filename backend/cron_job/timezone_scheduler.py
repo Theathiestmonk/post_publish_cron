@@ -393,7 +393,7 @@ class TimezoneAwareScheduler:
     async def publish_single_post_max_speed(self, post):
         """Publish single post without any concurrency limits"""
         try:
-            from content_publisher import ContentPublisherService
+            from cron_job.content_publisher import ContentPublisherService
             publisher = ContentPublisherService(self.supabase, self.cipher)
             success = await publisher.publish_created_content(post)
 
@@ -433,7 +433,7 @@ class TimezoneAwareScheduler:
         """Publish a single post with concurrency control"""
         async with semaphore:
             try:
-                from content_publisher import ContentPublisherService
+                from cron_job.content_publisher import ContentPublisherService
                 publisher = ContentPublisherService(self.supabase, self.cipher)
                 return await publisher.publish_created_content(post)
             except Exception as e:
